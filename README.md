@@ -1,4 +1,4 @@
-# ✅ Task List App
+# Task List App
 
 A simple task management web application where users can add, mark as done, and delete tasks. Built using HTML, CSS, and JavaScript with support for persistent data using `localStorage`.
 
