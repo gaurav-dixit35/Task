@@ -7,14 +7,35 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <div class="toggle-theme">
+    <label class="switch">
+      <input type="checkbox" id="themeToggle">
+      <span class="slider round"></span>
+    </label>
+    <span>Dark Mode</span>
+  </div>
+
   <div class="container">
     <h1>Task List</h1>
+
+    <input type="text" id="searchInput" placeholder="Search tasks..." />
+
     <form id="taskForm">
       <input type="text" id="taskInput" placeholder="Enter a new task" required />
+      <select id="prioritySelect">
+        <option value="low">🟢 Low</option>
+        <option value="medium">🟡 Medium</option>
+        <option value="high">🔴 High</option>
+      </select>
       <button type="submit">Add Task</button>
+      <button type="button" id="voiceBtn" title="Speak Task">🎤</button>
     </form>
+
     <ul id="taskList"></ul>
   </div>
+<div id="snackbar">Task deleted. <button id="undoBtn">Undo</button></div>
+
   <script src="script.js"></script>
+
 </body>
 </html>

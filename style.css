@@ -1,3 +1,4 @@
+/* Reset */
 * {
   box-sizing: border-box;
   margin: 0;
@@ -5,18 +6,27 @@
 }
 
 body {
-  font-family: Arial, sans-serif;
+  font-family: 'Segoe UI', sans-serif;
   padding: 20px;
+  transition: background 0.3s, color 0.3s;
   background: #f5f5f5;
+  color: #222;
+}
+
+/* Dark Mode */
+body.dark {
+  background: #1e1e2f;
+  color: #f5f5f5;
 }
 
 .container {
   max-width: 600px;
-  margin: 0 auto;
-  background: white;
+  margin: auto;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(10px);
   padding: 20px;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
 }
 
 h1 {
@@ -31,26 +41,29 @@ form {
   flex-wrap: wrap;
 }
 
-input[type="text"] {
+input[type="text"],
+select {
   flex: 1;
   padding: 10px;
   font-size: 16px;
   border: 1px solid #ccc;
-  border-radius: 4px;
+  border-radius: 6px;
+  outline: none;
 }
 
 button {
   padding: 10px 15px;
   font-size: 16px;
-  background: #28a745;
+  background: #007bff;
   color: white;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
+  transition: background 0.3s;
 }
 
 button:hover {
-  background: #218838;
+  background: #0056b3;
 }
 
 ul {
@@ -61,11 +74,17 @@ ul {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px;
+  padding: 12px;
   margin-bottom: 10px;
-  background: #f9f9f9;
-  border-left: 5px solid #28a745;
-  border-radius: 4px;
+  background: #ffffff40;
+  border-left: 6px solid #007bff;
+  border-radius: 6px;
+  backdrop-filter: blur(6px);
+  transition: all 0.3s ease;
+}
+
+body.dark .task-item {
+  background: #2b2b3c90;
 }
 
 .task-item.completed {
@@ -73,8 +92,12 @@ ul {
   opacity: 0.6;
 }
 
+.task-item .buttons {
+  display: flex;
+  gap: 6px;
+}
+
 .task-item button {
-  margin-left: 5px;
   background: #dc3545;
   font-size: 14px;
 }
@@ -84,16 +107,146 @@ ul {
 }
 
 .task-item .done-btn {
-  background: #007bff;
+  background: #28a745;
 }
 
 .task-item .done-btn:hover {
-  background: #0069d9;
+  background: #1e7e34;
 }
 
-@media (max-width: 400px) {
+.task-priority {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-left: 10px;
+  font-weight: bold;
+}
+
+.priority-low {
+  background: #d4edda;
+  color: #155724;
+}
+
+.priority-medium {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.priority-high {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+/* Theme toggle */
+.toggle-theme {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 15px;
+  justify-content: flex-end;
+}
+
+/* Switch button */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 25px;
+}
+.switch input { display: none; }
+.slider {
+  position: absolute;
+  cursor: pointer;
+  background-color: #ccc;
+  border-radius: 25px;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  transition: .4s;
+}
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 20px;
+  width: 20px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  border-radius: 50%;
+  transition: .4s;
+}
+input:checked + .slider {
+  background-color: #007bff;
+}
+input:checked + .slider:before {
+  transform: translateX(25px);
+}
+.slider.round { border-radius: 34px; }
+.slider.round:before { border-radius: 50%; }
+
+/* Mobile */
+@media (max-width: 480px) {
   .task-item {
     flex-direction: column;
     align-items: flex-start;
   }
+}
+#searchInput {
+  width: 100%;
+  padding: 10px;
+  font-size: 16px;
+  margin-bottom: 15px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  outline: none;
+}
+
+#voiceBtn {
+  font-size: 18px;
+  padding: 10px 12px;
+  background: #ff5722;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+#voiceBtn:hover {
+  background: #e64a19;
+}
+#snackbar {
+  visibility: hidden;
+  min-width: 250px;
+  background-color: #323232;
+  color: #fff;
+  text-align: center;
+  border-radius: 6px;
+  padding: 16px;
+  position: fixed;
+  left: 50%;
+  bottom: 30px;
+  transform: translateX(-50%);
+  font-size: 16px;
+  z-index: 999;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  opacity: 0;
+  transition: visibility 0s, opacity 0.3s ease;
+}
+
+#snackbar.show {
+  visibility: visible;
+  opacity: 1;
+}
+
+#snackbar button {
+  background-color: transparent;
+  border: none;
+  color: #4caf50;
+  font-weight: bold;
+  cursor: pointer;
 }
