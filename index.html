@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <!-- Theme toggle -->
   <div class="toggle-theme">
     <label class="switch">
       <input type="checkbox" id="themeToggle">
@@ -15,11 +16,20 @@
     <span>Dark Mode</span>
   </div>
 
+  <!-- Auth Info -->
+  <div class="auth-section">
+    <button id="logoutBtn" style="display: none;">Logout</button>
+    <span id="userInfo"></span>
+  </div>
+
+  <!-- Main Container -->
   <div class="container">
     <h1>Task List</h1>
 
+    <!-- Search -->
     <input type="text" id="searchInput" placeholder="Search tasks..." />
 
+    <!-- Task Form -->
     <form id="taskForm">
       <input type="text" id="taskInput" placeholder="Enter a new task" required />
       <select id="prioritySelect">
@@ -31,11 +41,14 @@
       <button type="button" id="voiceBtn" title="Speak Task">🎤</button>
     </form>
 
+    <!-- Task List -->
     <ul id="taskList"></ul>
   </div>
-<div id="snackbar">Task deleted. <button id="undoBtn">Undo</button></div>
 
-  <script src="script.js"></script>
+  <!-- Snackbar for Undo -->
+  <div id="snackbar">Task deleted. <button id="undoBtn">Undo</button></div>
 
+  <!-- Main App Script (Firebase Auth, Firestore, Task Logic) -->
+  <script type="module" src="script.js"></script>
 </body>
 </html>
