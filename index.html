@@ -32,6 +32,7 @@
     <!-- Task Form -->
     <form id="taskForm">
       <input type="text" id="taskInput" placeholder="Enter a new task" required />
+      <input type="datetime-local" id="dueInput" required />
       <select id="prioritySelect">
         <option value="low">🟢 Low</option>
         <option value="medium">🟡 Medium</option>
@@ -47,7 +48,7 @@
 
   <!-- Snackbar for Undo -->
   <div id="snackbar">Task deleted. <button id="undoBtn">Undo</button></div>
-
+  
   <!-- Main App Script (Firebase Auth, Firestore, Task Logic) -->
   <script type="module" src="script.js"></script>
 </body>
