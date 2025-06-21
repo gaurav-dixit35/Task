@@ -32,6 +32,8 @@ const logoutBtn = document.getElementById('logoutBtn');
 const userInfo = document.getElementById('userInfo');
 const themeToggle = document.getElementById('themeToggle');
 const dueInput = document.getElementById('dueInput');
+const noNotify = document.getElementById('noNotify');
+
 
 let user = null;
 let tasks = [];
