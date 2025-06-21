@@ -33,13 +33,14 @@ const userInfo = document.getElementById('userInfo');
 const themeToggle = document.getElementById('themeToggle');
 const dueInput = document.getElementById('dueInput');
 const noNotify = document.getElementById('noNotify');
-
+const reminderSound = document.getElementById('reminderSound');
+const sortSelect = document.getElementById('sortSelect');
 
 let user = null;
 let tasks = [];
 let lastDeleted = null;
 
-// 🔐 Auth state check
+// Auth state
 onAuthStateChanged(auth, async (u) => {
   if (!u) {
     window.location.href = "login.html";
@@ -51,13 +52,13 @@ onAuthStateChanged(auth, async (u) => {
   }
 });
 
-// 🔓 Logout
+// Logout
 logoutBtn?.addEventListener('click', async () => {
   await signOut(auth);
   window.location.href = "login.html";
 });
 
-// 🔄 Load Tasks from Firestore
+// Load tasks
 async function loadTasks() {
   tasks = [];
   const q = query(collection(db, "users", user.uid, "tasks"));
@@ -68,7 +69,7 @@ async function loadTasks() {
   renderTasks();
 }
 
-// ➕ Save Task
+// Save task
 async function saveTaskToFirestore(task) {
   const docRef = await addDoc(collection(db, "users", user.uid, "tasks"), task);
   task.id = docRef.id;
@@ -76,22 +77,38 @@ async function saveTaskToFirestore(task) {
   renderTasks();
 }
 
-// 🔁 Update Task
+// Update task
 async function updateTaskInFirestore(taskId, updatedFields) {
   await updateDoc(doc(db, "users", user.uid, "tasks", taskId), updatedFields);
 }
 
-// ❌ Delete Task
+// Delete task
 async function deleteTaskFromFirestore(taskId) {
   await deleteDoc(doc(db, "users", user.uid, "tasks", taskId));
 }
+function getSortedTasks() {
+  const method = sortSelect.value;
+  const taskCopy = [...tasks];
 
-// 🎨 Render Tasks
+  switch (method) {
+    case "due":
+      return taskCopy.sort((a, b) => new Date(a.dueDate || 0) - new Date(b.dueDate || 0));
+    case "priority":
+      const priorityOrder = { high: 1, medium: 2, low: 3 };
+      return taskCopy.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
+    case "completed":
+      return taskCopy.sort((a, b) => (a.completed === b.completed ? 0 : a.completed ? 1 : -1));
+    default:
+      return taskCopy;
+  }
+}
+
+// Render task list
 function renderTasks() {
   taskList.innerHTML = '';
   const searchValue = searchInput.value.toLowerCase();
 
-  tasks.forEach((task) => {
+  getSortedTasks().forEach((task) => {
     if (!task.name.toLowerCase().includes(searchValue)) return;
 
     const li = document.createElement('li');
@@ -145,7 +162,7 @@ function renderTasks() {
   });
 }
 
-// 🗓️ Add Task with Due Date
+// Add task
 taskForm?.addEventListener('submit', async (e) => {
   e.preventDefault();
   const taskName = taskInput.value.trim();
@@ -158,16 +175,19 @@ taskForm?.addEventListener('submit', async (e) => {
       priority,
       dueDate,
       completed: false,
-      notified: false
+      notified: false,
+      noNotify: noNotify?.checked || false
     };
+
     taskInput.value = '';
     prioritySelect.value = 'low';
     dueInput.value = '';
+    noNotify.checked = false;
     await saveTaskToFirestore(newTask);
   }
 });
 
-// 🔄 Undo Deleted Task
+// Undo
 undoBtn?.addEventListener('click', async () => {
   if (lastDeleted && user) {
     await saveTaskToFirestore({
@@ -175,7 +195,8 @@ undoBtn?.addEventListener('click', async () => {
       priority: lastDeleted.priority,
       dueDate: lastDeleted.dueDate || '',
       completed: lastDeleted.completed,
-      notified: lastDeleted.notified || false
+      notified: lastDeleted.notified || false,
+      noNotify: lastDeleted.noNotify || false
     });
     snackbar?.classList.remove('show');
     lastDeleted = null;
@@ -190,7 +211,7 @@ function showUndoSnackbar() {
   }, 5000);
 }
 
-// 🎤 Voice Input
+// Voice input
 voiceBtn?.addEventListener('click', () => {
   if (!('webkitSpeechRecognition' in window)) {
     alert('Speech recognition not supported in your browser.');
@@ -205,13 +226,13 @@ voiceBtn?.addEventListener('click', () => {
   };
 });
 
-// 🌙 Dark Mode
+// Dark mode
 themeToggle?.addEventListener('change', () => {
   document.body.classList.toggle('dark');
   localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
 });
 
-// 🌓 Load saved theme
+// Load theme
 window.addEventListener('load', () => {
   if (localStorage.getItem('theme') === 'dark') {
     document.body.classList.add('dark');
@@ -220,24 +241,25 @@ window.addEventListener('load', () => {
 });
 searchInput?.addEventListener('input', renderTasks);
 
-// 🔔 Notification Reminder System
+// 🔔 Reminder checker
 function checkDueReminders() {
   if (!("Notification" in window) || Notification.permission !== "granted") return;
 
   const now = new Date().getTime();
 
   tasks.forEach(task => {
-    if (!task.dueDate || task.notified) return;
+    if (!task.dueDate || task.notified || task.noNotify) return;
 
     const taskDue = new Date(task.dueDate).getTime();
 
     if (Math.abs(now - taskDue) <= 60000) {
       new Notification(`⏰ Reminder: "${task.name}" is due now!`);
+      reminderSound?.play();
       task.notified = true;
       updateTaskInFirestore(task.id, { notified: true });
     }
   });
 }
+sortSelect?.addEventListener('change', renderTasks);
 
-// ⏱️ Check reminders every 30 seconds
 setInterval(checkDueReminders, 30000);

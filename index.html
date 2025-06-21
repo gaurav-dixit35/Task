@@ -46,6 +46,15 @@
       <button type="submit">Add Task</button>
       <button type="button" id="voiceBtn" title="Speak Task">🎤</button>
     </form>
+    <div class="sort-section">
+      <label for="sortSelect">Sort by:</label>
+      <select id="sortSelect">
+        <option value="default">Default</option>
+        <option value="due">Due Date</option>
+        <option value="priority">Priority</option>
+        <option value="completed">Completed</option>
+      </select>
+    </div>
 
     <!-- Task List -->
     <ul id="taskList"></ul>
@@ -56,5 +65,7 @@
   
   <!-- Main App Script (Firebase Auth, Firestore, Task Logic) -->
   <script type="module" src="script.js"></script>
+  <audio id="reminderSound" src="https://notificationsounds.com/storage/sounds/file-sounds-1150-pristine.mp3" preload="auto"></audio>
+
 </body>
 </html>
