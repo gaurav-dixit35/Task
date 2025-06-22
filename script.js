@@ -35,6 +35,11 @@ const dueInput = document.getElementById('dueInput');
 const noNotify = document.getElementById('noNotify');
 const reminderSound = document.getElementById('reminderSound');
 const sortSelect = document.getElementById('sortSelect');
+const profile = document.getElementById('profile');
+const profileWrapper = document.querySelector('.profile-wrapper');
+const profileDropdown = document.getElementById('profileDropdown');
+const logoutDropdownBtn = document.getElementById('logoutDropdownBtn');
+const settingsBtn = document.getElementById('settingsBtn');
 
 let user = null;
 let tasks = [];
@@ -47,16 +52,35 @@ onAuthStateChanged(auth, async (u) => {
   } else {
     user = u;
     if (logoutBtn) logoutBtn.style.display = "inline-block";
-    if (userInfo) userInfo.textContent = `Logged in as ${user.displayName}`;
+    if (userInfo) userInfo.textContent = user.displayName || user.email;
+    if (profile && user.displayName) {
+      profile.textContent = user.displayName.charAt(0).toUpperCase();
+    }
+
     await loadTasks();
   }
 });
 
 // Logout
-logoutBtn?.addEventListener('click', async () => {
+logoutDropdownBtn?.addEventListener('click', async () => {
   await signOut(auth);
   window.location.href = "login.html";
 });
+profile?.addEventListener('click', () => {
+  profileDropdown.style.display =
+    profileDropdown.style.display === 'block' ? 'none' : 'block';
+});
+
+// Optional: close dropdown on outside click
+document.addEventListener('click', (e) => {
+  if (!profileWrapper.contains(e.target)) {
+    profileDropdown.style.display = 'none';
+  }
+});
+settingsBtn?.addEventListener('click', () => {
+  alert("Settings feature coming soon!");
+});
+
 
 // Load tasks
 async function loadTasks() {
@@ -263,3 +287,9 @@ function checkDueReminders() {
 sortSelect?.addEventListener('change', renderTasks);
 
 setInterval(checkDueReminders, 30000);
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker
+    .register("service-worker.js")
+    .then(() => console.log("✅ Service Worker Registered"))
+    .catch((error) => console.error("SW Error:", error));
+}

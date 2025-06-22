@@ -298,3 +298,90 @@ body.dark #sortSelect {
   color: #eee;
   border-color: #444;
 }
+/* Profile Initial Circle */
+.profile-circle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background-color: #4f46e5; /* Indigo */
+  color: white;
+  font-weight: bold;
+  font-size: 18px;
+  margin-right: 10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+
+body.dark .profile-circle {
+  background-color: #6366f1;
+}
+
+.user-name {
+  font-weight: 600;
+  font-size: 14px;
+  vertical-align: middle;
+  color: var(--text-color);
+}
+.profile-wrapper {
+  position: relative;
+  display: inline-block;
+  margin-right: 16px; /* ✅ Push away from screen edge */
+}
+
+
+.dropdown {
+  position: absolute;
+  top: 45px;
+  right: 100; /* Align to right of wrapper */
+  transform: translateX(-20%); /* ✅ Shift inward to avoid overflow */
+  background: var(--bg-light, #fff);
+  border: 1px solid var(--border-color, #ccc);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  display: none;
+  z-index: 1000;
+  min-width: 140px;
+  animation: fadeIn 0.2s ease-in-out;
+  overflow-wrap: break-word;
+}
+
+.dropdown ul {
+  list-style: none;
+  padding: 8px 0;
+  margin: 0;
+}
+
+.dropdown li {
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text-color, #222);
+  transition: background 0.2s ease;
+}
+
+.dropdown li:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+body.dark .dropdown {
+  background: #1e1e1e;
+  border-color: #444;
+}
+
+body.dark .dropdown li:hover {
+  background-color: #333;
+}
+@media (max-width: 400px) {
+  .dropdown {
+    right: auto;
+    left: 0;
+    transform: none;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
