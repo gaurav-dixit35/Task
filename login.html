@@ -5,29 +5,138 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Login | Task App</title>
 
-  <!-- Styles -->
-  <link rel="stylesheet" href="style.css" />
+  <!-- Aesthetic Font & Icons -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 
-  <!-- ✅ PWA Manifest + Theme Color -->
+  <!-- CSS -->
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: 'Inter', sans-serif;
+    }
+
+    body {
+      margin: 0;
+      background: linear-gradient(120deg, #1f1c2c, #928dab);
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .login-container {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(20px);
+      border-radius: 20px;
+      padding: 2rem;
+      width: 90%;
+      max-width: 400px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+      animation: fadeIn 1s ease-out;
+    }
+
+    h1 {
+      color: #fff;
+      text-align: center;
+      margin-bottom: 1.5rem;
+    }
+
+    .login-container input {
+      width: 100%;
+      padding: 12px 16px;
+      margin-bottom: 1rem;
+      border: none;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.15);
+      color: #fff;
+      font-size: 1rem;
+    }
+
+    .login-container input::placeholder {
+      color: #ccc;
+    }
+
+    .login-container button {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 10px;
+      background: #4f46e5;
+      color: white;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+
+    .login-container button:hover {
+      background: #372fd0;
+    }
+
+    .divider {
+      text-align: center;
+      margin: 1rem 0;
+      color: #ddd;
+    }
+
+    .google-btn {
+      background: white;
+      color: #444;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .google-btn i {
+      margin-right: 8px;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: scale(0.9);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+  </style>
+
+  <!-- ✅ PWA -->
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#4f46e5" />
 </head>
 <body>
-  <div class="container">
+  <div class="login-container">
     <h1>Login to Task App</h1>
-    <button id="loginBtn">Login with Google</button>
+    <form id="traditionalLogin">
+      <input type="text" id="name" placeholder="Full Name" required />
+      <input type="email" id="email" placeholder="Email" required />
+      <input type="password" id="password" placeholder="Password" required />
+      <button type="submit">Login</button>
+    </form>
+
+    <div class="divider">or</div>
+
+    <button id="loginBtn" class="google-btn">
+      <i class="fab fa-google"></i> Login with Google
+    </button>
   </div>
 
-  <!-- ✅ Firebase Login Logic -->
+  <!-- Login Logic -->
   <script type="module" src="login.js"></script>
 
-  <!-- ✅ PWA Service Worker Registration -->
+  <!-- Service Worker -->
   <script>
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker
-        .register("service-worker.js")
+      navigator.serviceWorker.register("service-worker.js")
         .then(() => console.log("✅ Service Worker Registered"))
-        .catch((err) => console.error("❌ SW registration failed:", err));
+        .catch((err) => console.error("SW Error", err));
     }
   </script>
 </body>
