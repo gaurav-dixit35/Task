@@ -11,33 +11,31 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <!-- Theme toggle -->
-  <div class="toggle-theme">
-    <label class="switch">
-      <input type="checkbox" id="themeToggle">
-      <span class="slider round"></span>
-    </label>
-    <span>Dark Mode</span>
-  </div>
 
-  <!-- Auth Info -->
-  <div class="auth-section">
-    <div class="profile-wrapper">
-      <div id="profile" class="profile-circle"></div>
-      <div class="dropdown" id="profileDropdown">
-        <ul>
-          <li id="settingsBtn">⚙️ Settings</li>
-          <li id="logoutDropdownBtn">
-            <i class="fa fa-sign-out" style="font-size:10px;color:red"></i> Logout
-          </li>
-        </ul>
-
-      </div>
+<header class="main-header">
+  <div class="profile-wrapper">
+    <div id="profile" class="profile-circle">K</div>
+    <div class="dropdown" id="profileDropdown">
+      <ul>
+        <li id="settingsBtn">Settings</li>
+        <li id="logoutDropdownBtn" style="color: red;">Logout <i class="fas fa-arrow-right"></i></li>
+      </ul>
     </div>
-    <span id="userInfo" class="user-name"></span>
-
-
   </div>
+
+  <div class="branding">
+    <img src="icons/icon-192.png" alt="Karya" class="branding-icon" />
+    <span class="branding-text">Karya</span>
+  </div>
+
+  <div class="theme-icon">
+    <label class="theme-toggle-icon">
+      <input type="checkbox" id="themeToggle" />
+      <i class="fas fa-moon"></i>
+    </label>
+  </div>
+</header>
+
 
   <!-- Main Container -->
   <div class="container">

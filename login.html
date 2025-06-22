@@ -5,138 +5,170 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Login | Task App</title>
 
-  <!-- Aesthetic Font & Icons -->
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
-
-  <!-- CSS -->
+  <!-- App Icon -->
+  <link rel="icon" href="icons/icon-192.png" type="image/png" />
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#4f46e5" />
   <link rel="stylesheet" href="style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600&family=Poppins:wght@500&display=swap" rel="stylesheet">
+
   <style>
     * {
+      margin: 0;
+      padding: 0;
       box-sizing: border-box;
-      font-family: 'Inter', sans-serif;
     }
 
     body {
-      margin: 0;
-      background: linear-gradient(120deg, #1f1c2c, #928dab);
+      font-family: 'Segoe UI', sans-serif;
       height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
+      background: linear-gradient(
+        135deg,
+        #2e003e,  /* Very dark purple */
+        #3a0050,  /* Dark violet */
+        #470062,  /* Deep purple */
+        #53007a,  /* Purple indigo */
+        #3c0078,  /* Indigo violet */
+        #2b006e,  /* Dark indigo */
+        #1b005d,  /* Deep blue-indigo */
+        #10004d,  /* Very dark blue */
+        #05003d,  /* Near navy */
+        #00002e,   /* Deep navy blue */
+        #7a6402,   /* Deep navy blue */
+        #716102   /* Deep navy blue */
+      );
+      background-size: 400% 400%;
+      animation: gradientFlow 15s ease infinite;
       overflow: hidden;
     }
 
-    .login-container {
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      backdrop-filter: blur(20px);
+    @keyframes gradientFlow {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    .container {
+      background: rgba(255, 255, 255, 0.1);
       border-radius: 20px;
-      padding: 2rem;
+      padding: 3rem 2.5rem;
+      backdrop-filter: blur(16px) saturate(180%);
+      -webkit-backdrop-filter: blur(16px) saturate(180%);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+      text-align: center;
       width: 90%;
       max-width: 400px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-      animation: fadeIn 1s ease-out;
+      color: white;
+      position: relative;
     }
 
-    h1 {
-      color: #fff;
-      text-align: center;
-      margin-bottom: 1.5rem;
+    .container h1 {
+      font-size: 1.8rem;
+      margin-bottom: 2rem;
+      font-weight: 600;
+      letter-spacing: 1px;
     }
 
-    .login-container input {
-      width: 100%;
-      padding: 12px 16px;
-      margin-bottom: 1rem;
-      border: none;
-      border-radius: 10px;
-      background: rgba(255, 255, 255, 0.15);
-      color: #fff;
-      font-size: 1rem;
+    .logo {
+      position: absolute;
+      top: -40px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: white;
+      border-radius: 50%;
+      padding: 10px;
+      box-shadow: 0 0 20px #4f46e5aa;
     }
 
-    .login-container input::placeholder {
-      color: #ccc;
+    .logo img {
+      height: 48px;
+      width: 48px;
     }
 
-    .login-container button {
-      width: 100%;
-      padding: 12px;
-      border: none;
-      border-radius: 10px;
+    #loginBtn {
       background: #4f46e5;
       color: white;
+      padding: 0.75rem 1.5rem;
+      border: none;
+      border-radius: 50px;
       font-size: 1rem;
-      font-weight: bold;
       cursor: pointer;
-      transition: background 0.3s ease;
+      box-shadow: 0 0 10px #4f46e5, 0 0 20px #4f46e580;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
     }
 
-    .login-container button:hover {
-      background: #372fd0;
+    #loginBtn::before {
+      content: "";
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, #ffffff33 10%, transparent 10.01%);
+      background-size: 10px 10px;
+      animation: pulse 2s linear infinite;
+      opacity: 0.3;
+      z-index: 0;
     }
 
-    .divider {
-      text-align: center;
-      margin: 1rem 0;
-      color: #ddd;
+    #loginBtn:hover {
+      background: #6c63ff;
+      box-shadow: 0 0 20px #6c63ff, 0 0 40px #6c63ff88;
     }
-
-    .google-btn {
-      background: white;
-      color: #444;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .google-btn i {
-      margin-right: 8px;
-    }
-
-    @keyframes fadeIn {
-      from {
-        opacity: 0;
-        transform: scale(0.9);
+    .login-text {
+        font-family: 'Poppins', sans-serif;
+        font-weight: 500;
       }
-      to {
-        opacity: 1;
-        transform: scale(1);
+
+      .karya-text {
+        font-family: 'Orbitron', sans-serif;
+        font-weight: 800;           /* Bold */
+        letter-spacing: 1px;
+        color: #fcd34d;             /* Optional: Highlight color */
+        font-size: 1.5em;           /* Optional: Make "Karya" stand out */
+      }
+
+
+
+    @keyframes pulse {
+      0% {
+        transform: rotate(0deg);
+      }
+      100% {
+        transform: rotate(360deg);
       }
     }
   </style>
-
-  <!-- ✅ PWA -->
-  <link rel="manifest" href="manifest.json" />
-  <meta name="theme-color" content="#4f46e5" />
 </head>
 <body>
-  <div class="login-container">
-    <h1>Login to Task App</h1>
-    <form id="traditionalLogin">
-      <input type="text" id="name" placeholder="Full Name" required />
-      <input type="email" id="email" placeholder="Email" required />
-      <input type="password" id="password" placeholder="Password" required />
-      <button type="submit">Login</button>
-    </form>
 
-    <div class="divider">or</div>
+  <div class="container">
+    <div class="logo">
+      <img src="icons/icon-192.png" alt="Task Manager Icon" />
+    </div>
+    <h1>
+      <span class="login-text">Login to</span>
+      <span class="karya-text">Karya</span>
+    </h1>
 
-    <button id="loginBtn" class="google-btn">
-      <i class="fab fa-google"></i> Login with Google
-    </button>
+    <button id="loginBtn">Login with Google</button>
   </div>
 
-  <!-- Login Logic -->
+  <!-- Firebase Login Logic -->
   <script type="module" src="login.js"></script>
 
-  <!-- Service Worker -->
+  <!-- PWA Service Worker Registration -->
   <script>
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("service-worker.js")
+      navigator.serviceWorker
+        .register("service-worker.js")
         .then(() => console.log("✅ Service Worker Registered"))
-        .catch((err) => console.error("SW Error", err));
+        .catch((err) => console.error("❌ SW registration failed:", err));
     }
   </script>
 </body>
