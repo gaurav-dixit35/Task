@@ -7,7 +7,6 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#4f46e5" />
-
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -36,51 +35,40 @@
   </div>
 </header>
 
+<div class="container">
+  <h1>Task List</h1>
 
-  <!-- Main Container -->
-  <div class="container">
-    <h1>Task List</h1>
+  <input type="text" id="searchInput" placeholder="Search tasks..." />
 
-    <!-- Search -->
-    <input type="text" id="searchInput" placeholder="Search tasks..." />
+  <form id="taskForm">
+    <input type="text" id="taskInput" placeholder="Enter a new task" required />
+    <input type="datetime-local" id="dueInput" required />
+    <select id="prioritySelect">
+      <option value="low">🟢 Low</option>
+      <option value="medium">🟡 Medium</option>
+      <option value="high">🔴 High</option>
+    </select>
+    <label><input type="checkbox" id="noNotify" /> 🔕 Don’t remind me</label>
+    <button type="submit">Add Task</button>
+    <button type="button" id="voiceBtn" title="Speak Task">🎤</button>
+  </form>
 
-    <!-- Task Form -->
-    <form id="taskForm">
-      <input type="text" id="taskInput" placeholder="Enter a new task" required />
-      <input type="datetime-local" id="dueInput" required />
-      <select id="prioritySelect">
-        <option value="low">🟢 Low</option>
-        <option value="medium">🟡 Medium</option>
-        <option value="high">🔴 High</option>
-      </select>
-       <label>
-        <input type="checkbox" id="noNotify" />
-        🔕 Don’t remind me for this task
-      </label>
-
-      <button type="submit">Add Task</button>
-      <button type="button" id="voiceBtn" title="Speak Task">🎤</button>
-    </form>
-    <div class="sort-section">
-      <label for="sortSelect">Sort by:</label>
-      <select id="sortSelect">
-        <option value="default">Default</option>
-        <option value="due">Due Date</option>
-        <option value="priority">Priority</option>
-        <option value="completed">Completed</option>
-      </select>
-    </div>
-
-    <!-- Task List -->
-    <ul id="taskList"></ul>
+  <div class="sort-section">
+    <label for="sortSelect">Sort by:</label>
+    <select id="sortSelect">
+      <option value="default">Default</option>
+      <option value="due">Due Date</option>
+      <option value="priority">Priority</option>
+      <option value="completed">Completed</option>
+    </select>
   </div>
 
-  <!-- Snackbar for Undo -->
-  <div id="snackbar">Task deleted. <button id="undoBtn">Undo</button></div>
-  
-  <!-- Main App Script (Firebase Auth, Firestore, Task Logic) -->
-  <script type="module" src="script.js"></script>
-  <audio id="reminderSound" src="https://notificationsounds.com/storage/sounds/file-sounds-1150-pristine.mp3" preload="auto"></audio>
+  <ul id="taskList"></ul>
+</div>
 
+<div id="snackbar">Task deleted. <button id="undoBtn">Undo</button></div>
+
+<audio id="reminderSound" src="https://notificationsounds.com/storage/sounds/file-sounds-1150-pristine.mp3" preload="auto"></audio>
+<script type="module" src="script.js"></script>
 </body>
 </html>
