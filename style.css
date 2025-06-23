@@ -58,11 +58,14 @@ body.dark {
 }
 
 .branding-text {
-  font-size: 1.5rem;
-  font-weight: bold;
-  color: gold;
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: #fcd34d;
+  font-size: 1.5em;
   text-shadow: 0 0 6px rgba(255, 215, 0, 0.6);
 }
+
 
 .profile-circle {
   display: inline-flex;
