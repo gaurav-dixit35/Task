@@ -39,9 +39,9 @@ body.dark {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(15px);
   z-index: 100;
-  background: rgba(0, 0, 0, 0.1);
+  background: rgba(0, 0, 0, 0.5); /* ✅ Fixed transparent black */
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
 }
 
@@ -90,7 +90,7 @@ body.dark {
 .dropdown {
   position: absolute;
   top: 45px;
-  right: 0;
+  right: 80;
   background: var(--bg-light);
   border: 1px solid var(--border-color);
   border-radius: 8px;
@@ -351,4 +351,142 @@ body.dark .task-item {
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(-5px); }
   to { opacity: 1; transform: translateY(0); }
+}
+button {
+  background-color: var(--accent-color);
+}
+:root {
+  --accent-color: #4f46e5;
+}
+button,
+.glow-btn {
+  background: var(--primary-color);
+}
+button:hover,
+.glow-btn:hover {
+  box-shadow: 0 0 15px var(--primary-color), 0 0 30px var(--primary-color);
+}
+/* ⭐ Rate Us Container */
+#rateUsContainer {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--bg-light, #fff);
+  color: var(--text-color, #222);
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  z-index: 9999;
+  max-width: 400px;
+  width: 90%;
+  display: none;
+  animation: fadeInScale 0.3s ease-in-out;
+}
+
+@keyframes fadeInScale {
+  from {
+    transform: translate(-50%, -50%) scale(0.8);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+}
+
+#rateUsContainer h2 {
+  text-align: center;
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+  color: var(--primary-color);
+}
+
+#starRating {
+  text-align: center;
+  margin: 1rem 0;
+}
+
+#starRating i {
+  font-size: 32px;
+  color: #ccc;
+  cursor: pointer;
+  transition: color 0.3s, transform 0.2s;
+}
+
+#starRating i.selected {
+  color: gold;
+  transform: scale(1.1);
+}
+
+#ratingLabel {
+  text-align: center;
+  font-size: 1.1rem;
+  margin: 0.5rem 0;
+  display: block;
+  color: var(--text-color);
+}
+
+#feedbackText {
+  width: 100%;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  font-size: 1rem;
+  resize: vertical;
+  margin-bottom: 1rem;
+  background: transparent;
+  color: inherit;
+}
+
+#feedbackText::placeholder {
+  color: #aaa;
+}
+
+#submitRating {
+  background: var(--primary-color);
+  color: white;
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  font-size: 1rem;
+  transition: background 0.3s;
+}
+
+#submitRating:hover {
+  background: #6c63ff;
+}
+
+#closeRateUs {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  font-size: 18px;
+  color: #999;
+  cursor: pointer;
+  transition: color 0.3s;
+}
+
+#closeRateUs:hover {
+  color: #555;
+}
+
+/* Dark mode compatibility */
+body.dark #rateUsContainer {
+  background: #1e1e2f;
+  color: #f5f5f5;
+}
+
+body.dark #feedbackText {
+  border-color: #444;
+}
+
+body.dark #starRating i {
+  color: #666;
+}
+
+body.dark #starRating i.selected {
+  color: gold;
 }

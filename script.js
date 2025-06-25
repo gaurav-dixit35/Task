@@ -3,7 +3,6 @@ import {
   signOut,
   onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js";
-
 import {
   collection,
   addDoc,
@@ -14,12 +13,7 @@ import {
   query
 } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
 
-// Ask for notification permission on load
-if ('Notification' in window && Notification.permission !== 'granted') {
-  Notification.requestPermission();
-}
-
-// DOM elements
+// DOM Elements
 const taskForm = document.getElementById('taskForm');
 const taskInput = document.getElementById('taskInput');
 const prioritySelect = document.getElementById('prioritySelect');
@@ -39,24 +33,31 @@ const profile = document.getElementById('profile');
 const profileWrapper = document.querySelector('.profile-wrapper');
 const profileDropdown = document.getElementById('profileDropdown');
 const logoutDropdownBtn = document.getElementById('logoutDropdownBtn');
-const settingsBtn = document.getElementById('settingsBtn');
+
+// Rate Us elements
+const rateContainer = document.getElementById("rateUsContainer");
+const rateUsBtn = document.getElementById("rateUsBtn");
+const closeRateUs = document.getElementById("closeRateUs");
+const submitRatingBtn = document.getElementById("submitRatingBtn");
+const starRating = document.getElementById("starRating");
+const ratingLabel = document.getElementById("ratingLabel");
+const feedbackText = document.getElementById("feedbackText");
 
 let user = null;
 let tasks = [];
 let lastDeleted = null;
+let selectedRating = 0;
 
-// Auth state
+// Auth
 onAuthStateChanged(auth, async (u) => {
   if (!u) {
     window.location.href = "login.html";
   } else {
     user = u;
-    if (logoutBtn) logoutBtn.style.display = "inline-block";
     if (userInfo) userInfo.textContent = user.displayName || user.email;
     if (profile && user.displayName) {
       profile.textContent = user.displayName.charAt(0).toUpperCase();
     }
-
     await loadTasks();
   }
 });
@@ -66,23 +67,19 @@ logoutDropdownBtn?.addEventListener('click', async () => {
   await signOut(auth);
   window.location.href = "login.html";
 });
+
+// Dropdown
 profile?.addEventListener('click', () => {
   profileDropdown.style.display =
     profileDropdown.style.display === 'block' ? 'none' : 'block';
 });
-
-// Optional: close dropdown on outside click
 document.addEventListener('click', (e) => {
   if (!profileWrapper.contains(e.target)) {
     profileDropdown.style.display = 'none';
   }
 });
-settingsBtn?.addEventListener('click', () => {
-  alert("Settings feature coming soon!");
-});
 
-
-// Load tasks
+// Load Tasks
 async function loadTasks() {
   tasks = [];
   const q = query(collection(db, "users", user.uid, "tasks"));
@@ -93,7 +90,7 @@ async function loadTasks() {
   renderTasks();
 }
 
-// Save task
+// Save Task
 async function saveTaskToFirestore(task) {
   const docRef = await addDoc(collection(db, "users", user.uid, "tasks"), task);
   task.id = docRef.id;
@@ -101,24 +98,26 @@ async function saveTaskToFirestore(task) {
   renderTasks();
 }
 
-// Update task
+// Update Task
 async function updateTaskInFirestore(taskId, updatedFields) {
   await updateDoc(doc(db, "users", user.uid, "tasks", taskId), updatedFields);
 }
 
-// Delete task
+// Delete Task
 async function deleteTaskFromFirestore(taskId) {
   await deleteDoc(doc(db, "users", user.uid, "tasks", taskId));
 }
+
+// Sort Logic
 function getSortedTasks() {
-  const method = sortSelect.value;
+  const method = sortSelect?.value || "default";
   const taskCopy = [...tasks];
+  const priorityOrder = { high: 1, medium: 2, low: 3 };
 
   switch (method) {
     case "due":
       return taskCopy.sort((a, b) => new Date(a.dueDate || 0) - new Date(b.dueDate || 0));
     case "priority":
-      const priorityOrder = { high: 1, medium: 2, low: 3 };
       return taskCopy.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
     case "completed":
       return taskCopy.sort((a, b) => (a.completed === b.completed ? 0 : a.completed ? 1 : -1));
@@ -127,7 +126,7 @@ function getSortedTasks() {
   }
 }
 
-// Render task list
+// Render Tasks
 function renderTasks() {
   taskList.innerHTML = '';
   const searchValue = searchInput.value.toLowerCase();
@@ -137,39 +136,23 @@ function renderTasks() {
 
     const li = document.createElement('li');
     li.className = `task-item ${task.completed ? 'completed' : ''}`;
+    li.innerHTML = `
+      <span>${task.name}</span>
+      ${task.dueDate ? `<small>🕒 Due: ${new Date(task.dueDate).toLocaleString()}</small>` : ""}
+      <span class="task-priority priority-${task.priority}">(${task.priority})</span>
+      <div class="buttons">
+        <button class="done-btn">✔</button>
+        <button class="delete-btn">✖</button>
+      </div>
+    `;
 
-    const taskText = document.createElement('span');
-    taskText.textContent = task.name;
-    li.appendChild(taskText);
-
-    if (task.dueDate) {
-      const due = document.createElement('small');
-      due.textContent = `🕒 Due: ${new Date(task.dueDate).toLocaleString()}`;
-      due.style.display = 'block';
-      due.style.fontSize = '12px';
-      due.style.color = '#999';
-      li.appendChild(due);
-    }
-
-    const prioritySpan = document.createElement('span');
-    prioritySpan.className = `task-priority priority-${task.priority}`;
-    prioritySpan.textContent = `(${task.priority})`;
-
-    const buttonsDiv = document.createElement('div');
-    buttonsDiv.className = 'buttons';
-
-    const doneBtn = document.createElement('button');
-    doneBtn.textContent = '✔';
-    doneBtn.className = 'done-btn';
-    doneBtn.onclick = async () => {
+    li.querySelector(".done-btn").onclick = async () => {
       task.completed = !task.completed;
       await updateTaskInFirestore(task.id, { completed: task.completed });
       renderTasks();
     };
 
-    const deleteBtn = document.createElement('button');
-    deleteBtn.textContent = '✖';
-    deleteBtn.onclick = async () => {
+    li.querySelector(".delete-btn").onclick = async () => {
       lastDeleted = { ...task };
       tasks = tasks.filter(t => t.id !== task.id);
       await deleteTaskFromFirestore(task.id);
@@ -177,16 +160,11 @@ function renderTasks() {
       showUndoSnackbar();
     };
 
-    buttonsDiv.appendChild(doneBtn);
-    buttonsDiv.appendChild(deleteBtn);
-
-    li.appendChild(prioritySpan);
-    li.appendChild(buttonsDiv);
     taskList.appendChild(li);
   });
 }
 
-// Add task
+// Add Task
 taskForm?.addEventListener('submit', async (e) => {
   e.preventDefault();
   const taskName = taskInput.value.trim();
@@ -202,26 +180,18 @@ taskForm?.addEventListener('submit', async (e) => {
       notified: false,
       noNotify: noNotify?.checked || false
     };
-
-    taskInput.value = '';
-    prioritySelect.value = 'low';
-    dueInput.value = '';
-    noNotify.checked = false;
     await saveTaskToFirestore(newTask);
+    taskInput.value = '';
+    dueInput.value = '';
+    prioritySelect.value = 'low';
+    noNotify.checked = false;
   }
 });
 
-// Undo
+// Undo Delete
 undoBtn?.addEventListener('click', async () => {
   if (lastDeleted && user) {
-    await saveTaskToFirestore({
-      name: lastDeleted.name,
-      priority: lastDeleted.priority,
-      dueDate: lastDeleted.dueDate || '',
-      completed: lastDeleted.completed,
-      notified: lastDeleted.notified || false,
-      noNotify: lastDeleted.noNotify || false
-    });
+    await saveTaskToFirestore({ ...lastDeleted });
     snackbar?.classList.remove('show');
     lastDeleted = null;
   }
@@ -235,61 +205,117 @@ function showUndoSnackbar() {
   }, 5000);
 }
 
-// Voice input
+// Voice Input
 voiceBtn?.addEventListener('click', () => {
   if (!('webkitSpeechRecognition' in window)) {
-    alert('Speech recognition not supported in your browser.');
+    alert('Speech recognition not supported.');
     return;
   }
   const recognition = new webkitSpeechRecognition();
   recognition.lang = 'en-US';
   recognition.start();
   recognition.onresult = (e) => {
-    const spoken = e.results[0][0].transcript;
-    taskInput.value = spoken;
+    taskInput.value = e.results[0][0].transcript;
   };
 });
 
-// Dark mode
+// Theme Toggle
 themeToggle?.addEventListener('change', () => {
   document.body.classList.toggle('dark');
   localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
 });
 
-// Load theme
 window.addEventListener('load', () => {
   if (localStorage.getItem('theme') === 'dark') {
     document.body.classList.add('dark');
     if (themeToggle) themeToggle.checked = true;
   }
-});
-searchInput?.addEventListener('input', renderTasks);
 
-// 🔔 Reminder checker
+  // Ask Notification Permission
+  if ('Notification' in window && Notification.permission !== 'granted') {
+    Notification.requestPermission().then(permission => {
+      console.log("🔔 Notification permission:", permission);
+    });
+  }
+});
+
+// 🔔 Due Date Reminder Check
 function checkDueReminders() {
   if (!("Notification" in window) || Notification.permission !== "granted") return;
 
-  const now = new Date().getTime();
-
+  const now = Date.now();
   tasks.forEach(task => {
     if (!task.dueDate || task.notified || task.noNotify) return;
 
     const taskDue = new Date(task.dueDate).getTime();
+    const diff = taskDue - now;
 
-    if (Math.abs(now - taskDue) <= 60000) {
-      new Notification(`⏰ Reminder: "${task.name}" is due now!`);
+    // Only trigger if due within ±60s
+    if (Math.abs(diff) <= 60000) {
+      new Notification(`⏰ "${task.name}" is due now!`);
       reminderSound?.play();
       task.notified = true;
       updateTaskInFirestore(task.id, { notified: true });
     }
   });
 }
-sortSelect?.addEventListener('change', renderTasks);
 
-setInterval(checkDueReminders, 30000);
+
+// Rating System
+const ratingLabels = {
+  1: "😞 Poor", 2: "😐 Fair", 3: "🙂 Good", 4: "😄 Very Good", 5: "🤩 Excellent"
+};
+
+starRating?.querySelectorAll("i").forEach(star => {
+  star.addEventListener("click", () => {
+    selectedRating = parseInt(star.dataset.value);
+    updateStarUI();
+  });
+});
+
+function updateStarUI() {
+  starRating?.querySelectorAll("i").forEach(star => {
+    star.classList.toggle("selected", parseInt(star.dataset.value) <= selectedRating);
+  });
+  ratingLabel.textContent = ratingLabels[selectedRating] || "Select a rating";
+}
+
+submitRatingBtn?.addEventListener("click", async () => {
+  const feedback = feedbackText.value.trim();
+  if (!selectedRating || !feedback) return alert("Please rate and give feedback");
+
+  try {
+    await addDoc(collection(db, "ratings"), {
+      rating: selectedRating,
+      feedback,
+      timestamp: new Date().toISOString(),
+      uid: user.uid,
+      name: user.displayName || "Anonymous",
+      email: user.email || "N/A"
+    });
+    alert("Thank you for your feedback!");
+    closeRateBox();
+  } catch (e) {
+    console.error("Failed to save rating:", e);
+    alert("Couldn't save rating.");
+  }
+});
+
+function closeRateBox() {
+  rateContainer.style.display = "none";
+  selectedRating = 0;
+  feedbackText.value = "";
+  updateStarUI();
+}
+
+rateUsBtn?.addEventListener("click", () => {
+  rateContainer.style.display = "flex";
+});
+closeRateUs?.addEventListener("click", closeRateBox);
+
+// Service Worker
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker
-    .register("service-worker.js")
-    .then(() => console.log("✅ Service Worker Registered"))
-    .catch((error) => console.error("SW Error:", error));
+  navigator.serviceWorker.register("service-worker.js")
+    .then(() => console.log("✅ SW Registered"))
+    .catch((e) => console.error("SW Error:", e));
 }

@@ -4,30 +4,55 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Task List App</title>
+
+  <!-- Font Awesome + Orbitron Font -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@800&display=swap" rel="stylesheet">
+
+  <!-- PWA Setup -->
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#4f46e5" />
+  <link rel="icon" href="favicon.ico" />
+
+  <!-- Dynamic Primary Color -->
+  <style>
+    :root {
+      --primary-color: #4f46e5;
+    }
+  </style>
+  <script>
+    const savedColor = localStorage.getItem("customColor");
+    if (savedColor) {
+      document.documentElement.style.setProperty('--primary-color', savedColor);
+    }
+  </script>
+  
+  <!-- Main Styles -->
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
+<!-- 🔝 Header -->
 <header class="main-header">
+  <!-- 👤 Profile Dropdown -->
   <div class="profile-wrapper">
     <div id="profile" class="profile-circle">K</div>
     <div class="dropdown" id="profileDropdown">
       <ul>
-        <li id="settingsBtn">Settings</li>
-        <li id="logoutDropdownBtn" style="color: red;">Logout <i class="fas fa-arrow-right"></i></li>
+        <li><a href="settings.html" style="color: inherit; text-decoration: none;">Settings</a></li>
+        <li id="rateUsBtn">Rate Us</li>
+
       </ul>
     </div>
   </div>
 
+  <!-- 🌟 Branding Center -->
   <div class="branding">
     <img src="icons/logo.png" alt="Karya" class="branding-icon" />
     <span class="branding-text">Karya</span>
   </div>
 
+  <!-- 🌙 Theme Toggle -->
   <div class="theme-icon">
     <label class="theme-toggle-icon">
       <input type="checkbox" id="themeToggle" />
@@ -36,11 +61,14 @@
   </div>
 </header>
 
+<!-- 📋 Main Task Container -->
 <div class="container">
   <h1>Task List</h1>
 
+  <!-- 🔍 Search -->
   <input type="text" id="searchInput" placeholder="Search tasks..." />
 
+  <!-- ➕ Task Form -->
   <form id="taskForm">
     <input type="text" id="taskInput" placeholder="Enter a new task" required />
     <input type="datetime-local" id="dueInput" required />
@@ -49,11 +77,14 @@
       <option value="medium">🟡 Medium</option>
       <option value="high">🔴 High</option>
     </select>
-    <label><input type="checkbox" id="noNotify" /> 🔕 Don’t remind me</label>
+    <label>
+      <input type="checkbox" id="noNotify" /> 🔕 Don’t remind me
+    </label>
     <button type="submit">Add Task</button>
     <button type="button" id="voiceBtn" title="Speak Task">🎤</button>
   </form>
 
+  <!-- 📊 Sort Options -->
   <div class="sort-section">
     <label for="sortSelect">Sort by:</label>
     <select id="sortSelect">
@@ -64,12 +95,42 @@
     </select>
   </div>
 
+  <!-- 📌 Task List -->
   <ul id="taskList"></ul>
 </div>
 
+<!-- 🧼 Undo Snackbar -->
 <div id="snackbar">Task deleted. <button id="undoBtn">Undo</button></div>
 
+<!-- 🔔 Reminder Sound -->
 <audio id="reminderSound" src="https://notificationsounds.com/storage/sounds/file-sounds-1150-pristine.mp3" preload="auto"></audio>
+
+<!-- 🌟 Rate Us Container -->
+<div class="rate-us-container" id="rateUsContainer" style="display: none;">
+  <div class="rate-box">
+    <span class="close-rate" id="closeRateUs">×</span>
+    <h2>🌟 Rate Us</h2>
+    <p>We’d love to hear your feedback! Your opinion helps us improve.</p>
+
+    <!-- ⭐ Star Rating -->
+    <div class="stars" id="starRating">
+      <i class="fas fa-star" data-value="1" title="Poor 😞"></i>
+      <i class="fas fa-star" data-value="2" title="Fair 😐"></i>
+      <i class="fas fa-star" data-value="3" title="Good 🙂"></i>
+      <i class="fas fa-star" data-value="4" title="Very Good 😄"></i>
+      <i class="fas fa-star" data-value="5" title="Excellent 🤩"></i>
+    </div>
+
+    <p id="ratingLabel" class="rating-label">Select a rating</p>
+    <textarea id="feedbackText" placeholder="Share your thoughts..."></textarea>
+    <button class="glow-btn" id="submitRatingBtn">Rate</button>
+  </div>
+</div>
+
+
+
+<!-- 🔧 Main App Script -->
 <script type="module" src="script.js"></script>
+
 </body>
 </html>
