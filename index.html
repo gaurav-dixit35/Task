@@ -8,11 +8,12 @@
   <!-- Font Awesome + Orbitron Font -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
   <!-- PWA Setup -->
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#4f46e5" />
-  <link rel="icon" href="favicon.ico" />
+  
 
   <!-- Dynamic Primary Color -->
   <style>
@@ -71,17 +72,17 @@
   <!-- ➕ Task Form -->
   <form id="taskForm">
     <input type="text" id="taskInput" placeholder="Enter a new task" required />
+    <button type="button" id="voiceBtn" title="Speak Task">
+      <i class="fas fa-microphone"></i>
+    </button>
     <input type="datetime-local" id="dueInput" required />
     <select id="prioritySelect">
       <option value="low">🟢 Low</option>
       <option value="medium">🟡 Medium</option>
       <option value="high">🔴 High</option>
     </select>
-    <label>
-      <input type="checkbox" id="noNotify" /> 🔕 Don’t remind me
-    </label>
     <button type="submit">Add Task</button>
-    <button type="button" id="voiceBtn" title="Speak Task">🎤</button>
+
   </form>
 
   <!-- 📊 Sort Options -->
@@ -128,7 +129,9 @@
 </div>
 
 
-
+<footer>
+    <p>© 2025 Karya — Task Manager</p>
+  </footer>
 <!-- 🔧 Main App Script -->
 <script type="module" src="script.js"></script>
 

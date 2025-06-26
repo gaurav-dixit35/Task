@@ -288,3 +288,69 @@ footer {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-8px); }
 }
+ //notification
+ .setting-block {
+  background: #1e293b; /* Match your card background */
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+  max-width: 500px; /* Wider like the theme customizer */
+  margin: 20px auto;
+  color: #f1f5f9;
+  font-family: 'Segoe UI', sans-serif;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.setting-block label {
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: #fbbf24; /* Same yellow heading */
+}
+
+.setting-block p {
+  font-size: 0.95rem;
+  color: #cbd5e1;
+  margin-bottom: 10px;
+}
+
+.sound-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.sound-controls select {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid #475569;
+  background: #334155;
+  color: #f1f5f9;
+  outline: none;
+  transition: border-color 0.3s;
+}
+
+.sound-controls select:focus {
+  border-color: #38bdf8;
+}
+
+#previewSound {
+  background: #38bdf8;
+  color:rgb(27, 53, 113);
+  border: none;
+  padding: 10px 15px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background 0.3s;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+#previewSound:hover {
+  background: #0ea5e9;
+}

@@ -157,6 +157,23 @@ themeToggle?.addEventListener('change', () => {
   document.body.classList.toggle('dark');
   localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
 });
+// 🎵 Load saved sound preference
+const soundSelect = document.getElementById("soundSelect");
+window.addEventListener('load', () => {
+  const savedSound = localStorage.getItem("notificationSound") || "default";
+  if (soundSelect) soundSelect.value = savedSound;
+});
+
+//notification sound
+document.getElementById("previewSound")?.addEventListener("click", () => {
+  const selected = document.getElementById("soundSelect").value;
+  const audio = new Audio(`sounds/${selected}.mp3`);
+  audio.play();
+});
+document.getElementById("soundSelect")?.addEventListener("change", () => {
+  const selected = document.getElementById("soundSelect").value;
+  localStorage.setItem("notificationSound", selected);
+});
 
 // ℹ️ Dropdown info sections
 infoToggle?.addEventListener('click', () => {

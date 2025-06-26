@@ -41,7 +41,7 @@ body.dark {
   align-items: center;
   backdrop-filter: blur(15px);
   z-index: 100;
-  background: rgba(0, 0, 0, 0.5); /* ✅ Fixed transparent black */
+  background: rgba(0, 0, 0, 0.93); /* ✅ Fixed transparent black */
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
 }
 
@@ -489,4 +489,10 @@ body.dark #starRating i {
 
 body.dark #starRating i.selected {
   color: gold;
+}
+footer {
+  text-align: center;
+  margin: 40px 0 20px;
+  color: #94a3b8;
+  font-size: 13px;
 }

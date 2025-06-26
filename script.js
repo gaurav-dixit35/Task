@@ -26,9 +26,10 @@ const logoutBtn = document.getElementById('logoutBtn');
 const userInfo = document.getElementById('userInfo');
 const themeToggle = document.getElementById('themeToggle');
 const dueInput = document.getElementById('dueInput');
-const noNotify = document.getElementById('noNotify');
 const reminderSound = document.getElementById('reminderSound');
 const sortSelect = document.getElementById('sortSelect');
+sortSelect?.addEventListener("change", renderTasks);
+
 const profile = document.getElementById('profile');
 const profileWrapper = document.querySelector('.profile-wrapper');
 const profileDropdown = document.getElementById('profileDropdown');
@@ -173,13 +174,13 @@ taskForm?.addEventListener('submit', async (e) => {
 
   if (taskName !== '') {
     const newTask = {
-      name: taskName,
-      priority,
-      dueDate,
-      completed: false,
-      notified: false,
-      noNotify: noNotify?.checked || false
-    };
+  name: taskName,
+  priority,
+  dueDate,
+  completed: false,
+  notified: false
+};
+
     await saveTaskToFirestore(newTask);
     taskInput.value = '';
     dueInput.value = '';
@@ -230,35 +231,9 @@ window.addEventListener('load', () => {
     document.body.classList.add('dark');
     if (themeToggle) themeToggle.checked = true;
   }
-
-  // Ask Notification Permission
-  if ('Notification' in window && Notification.permission !== 'granted') {
-    Notification.requestPermission().then(permission => {
-      console.log("🔔 Notification permission:", permission);
-    });
-  }
-});
-
-// 🔔 Due Date Reminder Check
-function checkDueReminders() {
-  if (!("Notification" in window) || Notification.permission !== "granted") return;
-
-  const now = Date.now();
-  tasks.forEach(task => {
-    if (!task.dueDate || task.notified || task.noNotify) return;
-
-    const taskDue = new Date(task.dueDate).getTime();
-    const diff = taskDue - now;
-
-    // Only trigger if due within ±60s
-    if (Math.abs(diff) <= 60000) {
-      new Notification(`⏰ "${task.name}" is due now!`);
-      reminderSound?.play();
-      task.notified = true;
-      updateTaskInFirestore(task.id, { notified: true });
-    }
   });
-}
+  
+
 
 
 // Rating System
@@ -318,4 +293,50 @@ if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("service-worker.js")
     .then(() => console.log("✅ SW Registered"))
     .catch((e) => console.error("SW Error:", e));
+}
+// 🔔 Run Reminder Check Every Minute
+setInterval(checkDueReminders, 60000);
+checkDueReminders(); // Run immediately after page load
+
+// 🔔 Updated Reminder Check with LocalStorage Sound Selection
+function checkDueReminders() {
+  if (!("Notification" in window)) return;
+
+  if (Notification.permission !== "granted") {
+    Notification.requestPermission().then(permission => {
+      console.log("🔔 Notification permission status:", permission);
+    });
+    return;
+  }
+
+  const now = Date.now();
+  tasks.forEach(task => {
+    if (!task.dueDate || task.notified) return;
+
+    const taskDue = new Date(task.dueDate).getTime();
+    const diff = taskDue - now;
+
+    console.log(`⏰ Checking task: "${task.name}" | Due in ${Math.round(diff / 1000)} seconds`);
+
+    // Notify if task is due within next 60 seconds or overdue by 60 seconds
+    if (Math.abs(diff) <= 60000) {
+      console.log(`🔔 Sending notification for: "${task.name}"`);
+
+      // Show Browser Notification
+      new Notification(`⏰ "${task.name}" is due now!`);
+
+      // Dynamic Sound Selection with allowed sounds validation
+const allowedSounds = ["default", "ding", "bell"];
+let soundName = localStorage.getItem("notificationSound") || "default";
+if (!allowedSounds.includes(soundName)) soundName = "default";
+
+const audio = new Audio(`sounds/${soundName}.mp3`);
+audio.play().catch(err => console.error("🔇 Sound play failed:", err));
+
+
+      // Mark task as notified to avoid repeated alerts
+      task.notified = true;
+      updateTaskInFirestore(task.id, { notified: true });
+    }
+  });
 }
