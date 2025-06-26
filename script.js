@@ -164,6 +164,8 @@ function renderTasks() {
     taskList.appendChild(li);
   });
 }
+// Real-time Search Filter
+searchInput?.addEventListener("input", renderTasks);
 
 // Add Task
 taskForm?.addEventListener('submit', async (e) => {
