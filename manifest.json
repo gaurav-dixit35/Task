@@ -1,7 +1,8 @@
 {
   "name": "Task Manager",
   "short_name": "Tasks",
-  "start_url": "login.html",
+  "start_url": "/login.html",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#111827",
   "theme_color": "#4f46e5",

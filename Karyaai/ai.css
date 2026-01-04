@@ -1,0 +1,421 @@
+/* ai.css - Liquid glass theme for Karya AI panel */
+/* Use --karya-accent to match project primary color (set in index.html or set root) */
+
+:root {
+  --karya-accent: #06b6d4;
+
+  /* DARK (default) */
+  --karya-bg: rgba(10, 12, 20, 0.85);
+  --karya-glass: rgba(255, 255, 255, 0.04);
+  --karya-border: rgba(255, 255, 255, 0.08);
+
+  --karya-text-main: #e6eef0;
+  --karya-text-muted: #9aa6ab;
+  --karya-text-invert: #00171a;
+
+  --karya-user-msg: rgba(255, 255, 255, 0.04);
+  --karya-ai-msg: rgba(6, 182, 212, 0.15);
+
+  --karya-input-bg: rgba(0, 0, 0, 0.45);
+}
+body.light,
+html.light {
+  --karya-bg: rgba(245, 247, 250, 0.85);
+  --karya-glass: rgba(255, 255, 255, 0.6);
+  --karya-border: rgba(0, 0, 0, 0.08);
+
+  --karya-text-main: #0f172a;
+  --karya-text-muted: #475569;
+  --karya-text-invert: #ffffff;
+
+  --karya-user-msg: rgba(0, 0, 0, 0.04);
+  --karya-ai-msg: rgba(6, 182, 212, 0.18);
+
+  --karya-input-bg: rgba(255, 255, 255, 0.7);
+}
+
+body {
+  font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial;
+}
+
+/* Floating round button */
+
+.karya-ai-btn {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+
+  width: 70px;
+  height: 70px;
+
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  cursor: pointer;
+  z-index: 99999;
+}
+.karya-ai-btn img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+
+  box-shadow: 0 0 30px rgba(0, 220, 255, 0.7), 0 0 60px rgba(0, 220, 255, 0.45);
+
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+/* hover */
+
+.karya-ai-btn:hover img {
+  transform: scale(1.06);
+  box-shadow: 0 0 40px rgba(0, 220, 255, 0.95), 0 0 80px rgba(0, 220, 255, 0.6);
+}
+
+/* Panel container */
+.karya-panel {
+  position: fixed;
+  right: 24px;
+  bottom: 100px;
+  width: var(--panel-width);
+  max-width: calc(100vw - 48px);
+  background: var(--karya-bg);
+  border: 1px solid var(--karya-border);
+  border-radius: var(--panel-radius);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6), 0 0 24px rgba(6, 182, 212, 0.08);
+  overflow: hidden;
+  z-index: 99998;
+  transform-origin: bottom right;
+  transform: translateY(10px) scale(0.98);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s ease, transform 0.22s ease;
+  backdrop-filter: blur(10px) saturate(180%);
+}
+
+/* visible state toggled by JS */
+.karya-panel.open {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+/* header */
+.karya-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+  gap: 12px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.01),
+    rgba(255, 255, 255, 0.02)
+  );
+}
+
+.karya-title {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.karya-name {
+  font-family: "Orbitron", sans-serif;
+  font-weight: 700;
+  color: var(--karya-accent);
+  font-size: 14px;
+  letter-spacing: 1px;
+}
+.karya-sub {
+  font-size: 11px;
+  color: var(--karya-text-muted);
+}
+
+/* header controls */
+.karya-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.karya-mini-btn {
+  width: 34px;
+  height: 28px;
+  border-radius: 8px;
+  border: none;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--karya-text-main);
+  cursor: pointer;
+  box-shadow: none;
+  font-weight: 700;
+}
+.karya-close-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: none;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--karya-text-main);
+  cursor: pointer;
+}
+
+/* body */
+.karya-panel-body {
+  padding: 12px;
+  max-height: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.karya-messages {
+  overflow: auto;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* message bubbles */
+.karya-msg {
+  max-width: 86%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.3;
+  color: var(--karya-text-main);
+}
+.karya-msg.karya-user {
+  background: var(--karya-user-msg);
+  border: 1px solid var(--karya-border);
+  align-self: flex-end;
+}
+.karya-msg.karya-ai {
+  background: var(--karya-glass);
+  color: var(--karya-text-main);
+  border: 1px solid rgba(6, 182, 212, 0.25);
+  align-self: flex-start;
+}
+
+/* action buttons row */
+.karya-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.action-btn {
+  flex: 1 0 auto;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: none;
+  background: rgba(255, 255, 255, 0.02);
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.18s;
+}
+.action-btn.active {
+  box-shadow: 0 6px 20px rgba(6, 182, 212, 0.12);
+  border: 1px solid rgba(6, 182, 212, 0.12);
+}
+
+/* footer input */
+.karya-panel-footer {
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.02);
+}
+#karyaInput {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: var(--karya-input-bg);
+  color: var(--karya-text-main);
+  outline: none;
+}
+.voice-btn,
+.send-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  border: none;
+  background: var(--karya-accent);
+  color: #001;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+  pointer-events: auto;
+  cursor: pointer;
+  box-shadow: 0 10px 30px rgba(6, 182, 212, 0.12);
+}
+
+/* small responsive tweaks */
+@media (max-width: 480px) {
+  .karya-panel {
+    right: 12px;
+    left: 12px;
+    bottom: 90px;
+    width: auto;
+  }
+  .karya-ai-btn {
+    right: 12px;
+    bottom: 12px;
+  }
+}
+/* ================= AI TYPING EFFECT ================= */
+
+.karya-msg.typing::after {
+  content: "▍";
+  animation: blink 1s infinite;
+  margin-left: 2px;
+  opacity: 0.6;
+}
+
+@keyframes blink {
+  0% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+/* ===============================
+   KARYA AI VOICE BUTTON
+   Continuous Listening Animation
+   =============================== */
+
+#aiVoiceBtn {
+  position: relative;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Active listening state */
+#aiVoiceBtn.listening {
+  animation: voicePulse 1.5s infinite ease-in-out;
+  box-shadow: 0 0 0 0 rgba(98, 102, 255, 0.6);
+}
+
+/* Outer ripple ring */
+#aiVoiceBtn.listening::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 2px solid rgba(98, 102, 255, 0.6);
+  animation: voiceRipple 1.5s infinite;
+  pointer-events: none;
+}
+
+/* Mic pulse animation */
+@keyframes voicePulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Ripple ring animation */
+@keyframes voiceRipple {
+  0% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+.logo-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0f172a; /* dark fallback */
+  border: 2px solid #22d3ee; /* cyan glow border */
+  box-shadow: 0 0 10px rgba(34, 211, 238, 0.6);
+}
+
+.logo-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+.logo-box:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 16px rgba(34, 211, 238, 0.9);
+  transition: 0.3s ease;
+}
+.karya-ai-btn::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(6, 182, 212, 0.35), transparent 70%);
+  animation: aiOrbPulse 2.8s infinite ease-in-out;
+  pointer-events: none;
+}
+.karya-ai-btn::after {
+  content: "";
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 220, 255, 0.9);
+  opacity: 0;
+  pointer-events: none;
+  filter: drop-shadow(0 0 12px rgba(0, 220, 255, 1));
+}
+
+.karya-ai-btn.active::after {
+  animation: electricRing 0.6s ease-out;
+}
+
+@keyframes electricRing {
+  0% {
+    opacity: 1;
+    transform: scale(0.85) rotate(0deg);
+  }
+  70% {
+    opacity: 0.8;
+    transform: scale(1.25) rotate(180deg);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.6) rotate(360deg);
+  }
+}
+
+@keyframes aiOrbPulse {
+  0% {
+    opacity: 0.4;
+    transform: scale(0.95);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 0.4;
+    transform: scale(0.95);
+  }
+}

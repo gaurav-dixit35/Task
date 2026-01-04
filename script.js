@@ -1,7 +1,7 @@
-import { auth, db } from './firebase.js';
+import { auth, db } from "./firebase.js";
 import {
   signOut,
-  onAuthStateChanged
+  onAuthStateChanged,
 } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js";
 import {
   collection,
@@ -10,30 +10,30 @@ import {
   doc,
   updateDoc,
   getDocs,
-  query
+  query,
 } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
 
 // DOM Elements
-const taskForm = document.getElementById('taskForm');
-const taskInput = document.getElementById('taskInput');
-const prioritySelect = document.getElementById('prioritySelect');
-const taskList = document.getElementById('taskList');
-const searchInput = document.getElementById('searchInput');
-const voiceBtn = document.getElementById('voiceBtn');
-const snackbar = document.getElementById('snackbar');
-const undoBtn = document.getElementById('undoBtn');
-const logoutBtn = document.getElementById('logoutBtn');
-const userInfo = document.getElementById('userInfo');
-const themeToggle = document.getElementById('themeToggle');
-const dueInput = document.getElementById('dueInput');
-const reminderSound = document.getElementById('reminderSound');
-const sortSelect = document.getElementById('sortSelect');
+const taskForm = document.getElementById("taskForm");
+const taskInput = document.getElementById("taskInput");
+const prioritySelect = document.getElementById("prioritySelect");
+const taskList = document.getElementById("taskList");
+const searchInput = document.getElementById("searchInput");
+const voiceBtn = document.getElementById("voiceBtn");
+const snackbar = document.getElementById("snackbar");
+const undoBtn = document.getElementById("undoBtn");
+const logoutBtn = document.getElementById("logoutBtn");
+const userInfo = document.getElementById("userInfo");
+const themeToggle = document.getElementById("themeToggle");
+const dueInput = document.getElementById("dueInput");
+const reminderSound = document.getElementById("reminderSound");
+const sortSelect = document.getElementById("sortSelect");
 sortSelect?.addEventListener("change", renderTasks);
 
-const profile = document.getElementById('profile');
-const profileWrapper = document.querySelector('.profile-wrapper');
-const profileDropdown = document.getElementById('profileDropdown');
-const logoutDropdownBtn = document.getElementById('logoutDropdownBtn');
+const profile = document.getElementById("profile");
+const profileWrapper = document.querySelector(".profile-wrapper");
+const profileDropdown = document.getElementById("profileDropdown");
+const logoutDropdownBtn = document.getElementById("logoutDropdownBtn");
 
 // Rate Us elements
 const rateContainer = document.getElementById("rateUsContainer");
@@ -64,19 +64,19 @@ onAuthStateChanged(auth, async (u) => {
 });
 
 // Logout
-logoutDropdownBtn?.addEventListener('click', async () => {
+logoutDropdownBtn?.addEventListener("click", async () => {
   await signOut(auth);
   window.location.href = "login.html";
 });
 
 // Dropdown
-profile?.addEventListener('click', () => {
+profile?.addEventListener("click", () => {
   profileDropdown.style.display =
-    profileDropdown.style.display === 'block' ? 'none' : 'block';
+    profileDropdown.style.display === "block" ? "none" : "block";
 });
-document.addEventListener('click', (e) => {
+document.addEventListener("click", (e) => {
   if (!profileWrapper.contains(e.target)) {
-    profileDropdown.style.display = 'none';
+    profileDropdown.style.display = "none";
   }
 });
 
@@ -85,7 +85,7 @@ async function loadTasks() {
   tasks = [];
   const q = query(collection(db, "users", user.uid, "tasks"));
   const snap = await getDocs(q);
-  snap.forEach(docSnap => {
+  snap.forEach((docSnap) => {
     tasks.push({ ...docSnap.data(), id: docSnap.id });
   });
   renderTasks();
@@ -117,11 +117,17 @@ function getSortedTasks() {
 
   switch (method) {
     case "due":
-      return taskCopy.sort((a, b) => new Date(a.dueDate || 0) - new Date(b.dueDate || 0));
+      return taskCopy.sort(
+        (a, b) => new Date(a.dueDate || 0) - new Date(b.dueDate || 0)
+      );
     case "priority":
-      return taskCopy.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
+      return taskCopy.sort(
+        (a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]
+      );
     case "completed":
-      return taskCopy.sort((a, b) => (a.completed === b.completed ? 0 : a.completed ? 1 : -1));
+      return taskCopy.sort((a, b) =>
+        a.completed === b.completed ? 0 : a.completed ? 1 : -1
+      );
     default:
       return taskCopy;
   }
@@ -129,18 +135,24 @@ function getSortedTasks() {
 
 // Render Tasks
 function renderTasks() {
-  taskList.innerHTML = '';
+  taskList.innerHTML = "";
   const searchValue = searchInput.value.toLowerCase();
 
   getSortedTasks().forEach((task) => {
     if (!task.name.toLowerCase().includes(searchValue)) return;
 
-    const li = document.createElement('li');
-    li.className = `task-item ${task.completed ? 'completed' : ''}`;
+    const li = document.createElement("li");
+    li.className = `task-item ${task.completed ? "completed" : ""}`;
     li.innerHTML = `
       <span>${task.name}</span>
-      ${task.dueDate ? `<small>🕒 Due: ${new Date(task.dueDate).toLocaleString()}</small>` : ""}
-      <span class="task-priority priority-${task.priority}">(${task.priority})</span>
+      ${
+        task.dueDate
+          ? `<small>🕒 Due: ${new Date(task.dueDate).toLocaleString()}</small>`
+          : ""
+      }
+      <span class="task-priority priority-${task.priority}">(${
+      task.priority
+    })</span>
       <div class="buttons">
         <button class="done-btn">✔</button>
         <button class="delete-btn">✖</button>
@@ -155,7 +167,7 @@ function renderTasks() {
 
     li.querySelector(".delete-btn").onclick = async () => {
       lastDeleted = { ...task };
-      tasks = tasks.filter(t => t.id !== task.id);
+      tasks = tasks.filter((t) => t.id !== task.id);
       await deleteTaskFromFirestore(task.id);
       renderTasks();
       showUndoSnackbar();
@@ -168,54 +180,56 @@ function renderTasks() {
 searchInput?.addEventListener("input", renderTasks);
 
 // Add Task
-taskForm?.addEventListener('submit', async (e) => {
+taskForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
   const taskName = taskInput.value.trim();
   const priority = prioritySelect.value;
   const dueDate = dueInput.value;
 
-  if (taskName !== '') {
+  if (taskName !== "") {
     const newTask = {
-  name: taskName,
-  priority,
-  dueDate,
-  completed: false,
-  notified: false
-};
+      name: taskName,
+      priority,
+      dueDate,
+      completed: false,
+      notified: false,
+      snoozedUntil: null, // 🆕 Phase 5
+      warned: false, // 🆕 Phase 5 (early reminder)
+    };
 
     await saveTaskToFirestore(newTask);
-    taskInput.value = '';
-    dueInput.value = '';
-    prioritySelect.value = 'low';
+    taskInput.value = "";
+    dueInput.value = "";
+    prioritySelect.value = "low";
     noNotify.checked = false;
   }
 });
 
 // Undo Delete
-undoBtn?.addEventListener('click', async () => {
+undoBtn?.addEventListener("click", async () => {
   if (lastDeleted && user) {
     await saveTaskToFirestore({ ...lastDeleted });
-    snackbar?.classList.remove('show');
+    snackbar?.classList.remove("show");
     lastDeleted = null;
   }
 });
 
 function showUndoSnackbar() {
-  snackbar?.classList.add('show');
+  snackbar?.classList.add("show");
   setTimeout(() => {
-    snackbar?.classList.remove('show');
+    snackbar?.classList.remove("show");
     lastDeleted = null;
   }, 5000);
 }
 
 // Voice Input
-voiceBtn?.addEventListener('click', () => {
-  if (!('webkitSpeechRecognition' in window)) {
-    alert('Speech recognition not supported.');
+voiceBtn?.addEventListener("click", () => {
+  if (!("webkitSpeechRecognition" in window)) {
+    alert("Speech recognition not supported.");
     return;
   }
   const recognition = new webkitSpeechRecognition();
-  recognition.lang = 'en-US';
+  recognition.lang = "en-US";
   recognition.start();
   recognition.onresult = (e) => {
     taskInput.value = e.results[0][0].transcript;
@@ -223,27 +237,33 @@ voiceBtn?.addEventListener('click', () => {
 });
 
 // Theme Toggle
-themeToggle?.addEventListener('change', () => {
-  document.body.classList.toggle('dark');
-  localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
+themeToggle?.addEventListener("change", () => {
+  document.body.classList.toggle("light");
+
+  document.body.classList.toggle("dark");
+  localStorage.setItem(
+    "theme",
+    document.body.classList.contains("dark") ? "dark" : "light"
+  );
 });
 
-window.addEventListener('load', () => {
-  if (localStorage.getItem('theme') === 'dark') {
-    document.body.classList.add('dark');
+window.addEventListener("load", () => {
+  if (localStorage.getItem("theme") === "dark") {
+    document.body.classList.add("dark");
     if (themeToggle) themeToggle.checked = true;
   }
-  });
-  
-
-
+});
 
 // Rating System
 const ratingLabels = {
-  1: "😞 Poor", 2: "😐 Fair", 3: "🙂 Good", 4: "😄 Very Good", 5: "🤩 Excellent"
+  1: "😞 Poor",
+  2: "😐 Fair",
+  3: "🙂 Good",
+  4: "😄 Very Good",
+  5: "🤩 Excellent",
 };
 
-starRating?.querySelectorAll("i").forEach(star => {
+starRating?.querySelectorAll("i").forEach((star) => {
   star.addEventListener("click", () => {
     selectedRating = parseInt(star.dataset.value);
     updateStarUI();
@@ -251,15 +271,19 @@ starRating?.querySelectorAll("i").forEach(star => {
 });
 
 function updateStarUI() {
-  starRating?.querySelectorAll("i").forEach(star => {
-    star.classList.toggle("selected", parseInt(star.dataset.value) <= selectedRating);
+  starRating?.querySelectorAll("i").forEach((star) => {
+    star.classList.toggle(
+      "selected",
+      parseInt(star.dataset.value) <= selectedRating
+    );
   });
   ratingLabel.textContent = ratingLabels[selectedRating] || "Select a rating";
 }
 
 submitRatingBtn?.addEventListener("click", async () => {
   const feedback = feedbackText.value.trim();
-  if (!selectedRating || !feedback) return alert("Please rate and give feedback");
+  if (!selectedRating || !feedback)
+    return alert("Please rate and give feedback");
 
   try {
     await addDoc(collection(db, "ratings"), {
@@ -268,7 +292,7 @@ submitRatingBtn?.addEventListener("click", async () => {
       timestamp: new Date().toISOString(),
       uid: user.uid,
       name: user.displayName || "Anonymous",
-      email: user.email || "N/A"
+      email: user.email || "N/A",
     });
     alert("Thank you for your feedback!");
     closeRateBox();
@@ -292,7 +316,8 @@ closeRateUs?.addEventListener("click", closeRateBox);
 
 // Service Worker
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("service-worker.js")
+  navigator.serviceWorker
+    .register("service-worker.js")
     .then(() => console.log("✅ SW Registered"))
     .catch((e) => console.error("SW Error:", e));
 }
@@ -305,40 +330,77 @@ function checkDueReminders() {
   if (!("Notification" in window)) return;
 
   if (Notification.permission !== "granted") {
-    Notification.requestPermission().then(permission => {
-      console.log("🔔 Notification permission status:", permission);
-    });
+    Notification.requestPermission();
     return;
   }
 
   const now = Date.now();
-  tasks.forEach(task => {
-    if (!task.dueDate || task.notified) return;
 
-    const taskDue = new Date(task.dueDate).getTime();
-    const diff = taskDue - now;
+  tasks.forEach(async (task) => {
+    if (!task.dueDate || task.completed) return;
 
-    console.log(`⏰ Checking task: "${task.name}" | Due in ${Math.round(diff / 1000)} seconds`);
+    const due = new Date(task.dueDate).getTime();
 
-    // Notify if task is due within next 60 seconds or overdue by 60 seconds
-    if (Math.abs(diff) <= 60000) {
-      console.log(`🔔 Sending notification for: "${task.name}"`);
+    // 🔕 Snoozed
+    if (task.snoozedUntil && now < task.snoozedUntil) return;
 
-      // Show Browser Notification
-      new Notification(`⏰ "${task.name}" is due now!`);
+    const diff = due - now;
 
-      // Dynamic Sound Selection with allowed sounds validation
-const allowedSounds = ["default", "ding", "bell"];
-let soundName = localStorage.getItem("notificationSound") || "default";
-if (!allowedSounds.includes(soundName)) soundName = "default";
+    /* ---------- EARLY WARNING (10 min before) ---------- */
+    if (diff <= 10 * 60000 && diff > 0 && !task.warned) {
+      sendNotification(
+        `⏳ Coming up soon`,
+        `"${task.name}" is due in 10 minutes`
+      );
 
-const audio = new Audio(`sounds/${soundName}.mp3`);
-audio.play().catch(err => console.error("🔇 Sound play failed:", err));
-
-
-      // Mark task as notified to avoid repeated alerts
-      task.notified = true;
-      updateTaskInFirestore(task.id, { notified: true });
+      task.warned = true;
+      await updateTaskInFirestore(task.id, { warned: true });
+      playSound();
+      return;
     }
+
+    /* ---------- DUE NOW ---------- */
+    if (Math.abs(diff) <= 60000 && !task.notified) {
+      sendNotification(
+        `⏰ Task Due Now`,
+        `"${task.name}" needs your attention`
+      );
+
+      task.notified = true;
+      await updateTaskInFirestore(task.id, { notified: true });
+      playSound();
+      return;
+    }
+
+    /* ---------- MISSED TASK ---------- */
+    if (diff < -10 * 60000 && !task.notified) {
+      sendNotification(`⚠️ Missed Task`, `"${task.name}" is overdue`);
+
+      task.notified = true;
+      await updateTaskInFirestore(task.id, { notified: true });
+      playSound();
+    }
+  });
+}
+function sendNotification(title, body) {
+  new Notification(title, { body });
+}
+
+function playSound() {
+  const allowed = ["default", "ding", "bell"];
+  let sound = localStorage.getItem("notificationSound") || "default";
+  if (!allowed.includes(sound)) sound = "default";
+
+  const audio = new Audio(`sounds/${sound}.mp3`);
+  audio.play().catch(() => {});
+}
+async function snoozeTask(task, minutes = 10) {
+  const snoozeUntil = Date.now() + minutes * 60000;
+  task.snoozedUntil = snoozeUntil;
+
+  await updateTaskInFirestore(task.id, {
+    snoozedUntil,
+    notified: false,
+    warned: false,
   });
 }
