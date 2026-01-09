@@ -3,6 +3,7 @@
   --text-color: #222;
   --bg-light: #fff;
   --border-color: #ccc;
+  --primary-color: #4f46e5;
 }
 
 body.dark {
@@ -18,7 +19,7 @@ body.dark {
 }
 
 body {
-  font-family: 'Segoe UI', sans-serif;
+  font-family: "Segoe UI", sans-serif;
   background: #f5f5f5;
   color: var(--text-color);
   padding: 60px 20px 20px;
@@ -54,18 +55,16 @@ body.dark {
 .branding-icon {
   width: 30px;
   height: 30px;
-  
 }
 
 .branding-text {
-  font-family: 'Orbitron', sans-serif;
+  font-family: "Orbitron", sans-serif;
   font-weight: 800;
   letter-spacing: 2px;
   color: #fcd34d;
   font-size: 1.5em;
   text-shadow: 0 0 6px rgba(255, 215, 0, 0.6);
 }
-
 
 .profile-circle {
   display: inline-flex;
@@ -79,7 +78,7 @@ body.dark {
   font-weight: bold;
   font-size: 18px;
   margin-right: 10px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
 .profile-wrapper {
@@ -149,7 +148,7 @@ body.dark {
   backdrop-filter: blur(10px);
   padding: 20px;
   border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
 }
 
 h1 {
@@ -178,7 +177,7 @@ select {
 button {
   padding: 10px 15px;
   font-size: 16px;
-  background: #007bff;
+  background: var(--primary-color);
   color: white;
   border: none;
   border-radius: 6px;
@@ -275,7 +274,7 @@ body.dark .task-item {
 #voiceBtn {
   font-size: 18px;
   padding: 10px 12px;
-  background: #ff5722;
+  background: var(--primary-color);
   color: white;
   border: none;
   border-radius: 6px;
@@ -284,7 +283,7 @@ body.dark .task-item {
 }
 
 #voiceBtn:hover {
-  background: #e64a19;
+  background: var(--primary-color);
 }
 
 .sort-section {
@@ -302,7 +301,7 @@ body.dark .task-item {
   background-color: var(--bg-light);
   color: var(--text-color);
   font-size: 14px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   transition: all 0.2s ease-in-out;
   cursor: pointer;
 }
@@ -349,15 +348,16 @@ body.dark .task-item {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-5px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
-button {
-  background-color: var(--accent-color);
-}
-:root {
-  --accent-color: #4f46e5;
-}
+
 button,
 .glow-btn {
   background: var(--primary-color);

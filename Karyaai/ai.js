@@ -9,7 +9,6 @@ import {
 
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js";
 
-/* ================= CONTEXT MEMORY ================= */
 let morningDone =
   JSON.parse(localStorage.getItem("karya_morning_done")) || false;
 
@@ -23,8 +22,8 @@ let aiContext = {
 };
 aiContext.lastDecision = null;
 const aiPersona = {
-  tone: "neutral", // calm | strict | friendly | motivational
-  productivityLevel: "normal", // low | normal | high
+  tone: "neutral",
+  productivityLevel: "normal",
   focusMode: false,
   lastInteraction: Date.now(),
 };
@@ -39,29 +38,26 @@ function recordDecision({ action, reason, confidence = 0.7, data = null }) {
   };
 }
 
-/* ================= AI MEMORY (PHASE 8) ================= */
 let aiMemory = JSON.parse(localStorage.getItem("karya_ai_memory")) || {
   name: null,
-  preferredTone: "normal", // short | motivational | normal
+  preferredTone: "normal",
   prefersVoice: true,
-  preferredAction: "chat", // chat | smart-add | analyze
-  activeTime: null, // morning | evening | night
+  preferredAction: "chat",
+  activeTime: null,
 };
-/* ================= AI CORRECTION MEMORY (PHASE 18) ================= */
 
 let aiCorrections = JSON.parse(
   localStorage.getItem("karya_ai_corrections")
 ) || {
-  priorityFixes: {}, // phrase → corrected priority
-  timeFixes: {}, // phrase → corrected time
-  intentFixes: {}, // phrase → correct intent
+  priorityFixes: {},
+  timeFixes: {},
+  intentFixes: {},
 };
 
 function saveAiCorrections() {
   localStorage.setItem("karya_ai_corrections", JSON.stringify(aiCorrections));
 }
 
-/* ================= APP KNOWLEDGE BASE (PHASE 17) ================= */
 const aiBtn = document.getElementById("karyaAiBtn");
 
 aiBtn.addEventListener("click", () => {
@@ -182,7 +178,7 @@ function matchKnowledgeQuestion(text) {
   const t = text.toLowerCase();
 
   // Whole project
-  if (/what is karya$|explain karya$|about karya$/i.test(t)) {
+  if (/what is karya\??$|explain karya\??$|about karya\??$/i.test(t)) {
     return KARYA_KNOWLEDGE.karya;
   }
 
@@ -309,14 +305,12 @@ function handleVoiceCommand(command) {
   }
 }
 
-/* ================= ADAPTIVE INTELLIGENCE (PHASE 14) ================= */
-
 let behaviorMemory = JSON.parse(
   localStorage.getItem("karya_behavior_memory")
 ) || {
-  taskAddTimes: {}, // hour -> count
+  taskAddTimes: {},
   priorityUsage: { high: 0, medium: 0, low: 0 },
-  frequentTasks: {}, // name -> count
+  frequentTasks: {},
   procrastinationScore: 0,
   lastActiveHour: null,
 };
@@ -324,7 +318,6 @@ let behaviorMemory = JSON.parse(
 function saveBehaviorMemory() {
   localStorage.setItem("karya_behavior_memory", JSON.stringify(behaviorMemory));
 }
-/* ================= PREDICTIVE TIME INTELLIGENCE (PHASE 15) ================= */
 
 function getMostActiveHour() {
   const entries = Object.entries(behaviorMemory.taskAddTimes || {});
@@ -341,7 +334,6 @@ let idleTimer = null;
 let speechEnabled = true;
 let lastAddedTask = null;
 
-/* ================= DOM ================= */
 const btn = document.getElementById("karyaAiBtn");
 const panel = document.getElementById("karyaAiPanel");
 const closeBtn = document.getElementById("closeAi");
@@ -353,7 +345,6 @@ const actionButtons = document.querySelectorAll(".action-btn");
 const startNewChat = document.getElementById("startNewChat");
 const openHistory = document.getElementById("openHistory");
 const toggleSpeechBtn = document.getElementById("toggleSpeechBtn");
-/* speech*/
 toggleSpeechBtn?.addEventListener("click", () => {
   speechEnabled = !speechEnabled;
 
@@ -366,7 +357,6 @@ toggleSpeechBtn?.addEventListener("click", () => {
     system(" AI voice enabled");
   }
 });
-/* ================= VOICE STATE ================= */
 let recognition = null;
 let isListening = false;
 let lastTranscript = "";
@@ -375,11 +365,10 @@ let isSpeaking = false;
 let lastUserActivity = Date.now();
 let proactiveCooldown = false;
 let predictiveCooldown = false;
-let voiceOnlyMode = false; // Phase 23
+let voiceOnlyMode = false;
 
-/* ================= NETWORK STATE (PHASE 13) ================= */
 let isOnline = navigator.onLine;
-let aiMode = "local"; // local | hybrid | online
+let aiMode = "local";
 
 window.addEventListener("online", () => {
   isOnline = true;
@@ -400,11 +389,8 @@ function updateAiMode() {
     return;
   }
 
-  // default hybrid when online
   aiMode = "hybrid";
 }
-
-/* ================= VOICE INPUT (FIXED) ================= */
 
 function initVoice() {
   const SpeechRecognition =
@@ -443,7 +429,6 @@ function initVoice() {
     const transcript = event.results[0][0].transcript.trim();
     if (!transcript) return;
 
-    // 🎙 Voice command handling
     const command = detectVoiceCommand(transcript);
 
     if (command) {
@@ -480,19 +465,16 @@ function getTimeGreeting() {
 
 window.addEventListener("load", initVoice);
 
-/* ================= STATE ================= */
 let currentAction = "chat";
 let user = null;
 let chatHistory = [];
 const HISTORY_KEY = "karyaai_history_v3";
 
-/* ================= AUTH ================= */
 onAuthStateChanged(auth, (u) => {
   user = u || null;
   loadHistory(user ? user.uid : "anon");
 });
 
-/* ================= UI EVENTS ================= */
 btn.onclick = openPanel;
 closeBtn.onclick = closePanel;
 startNewChat.onclick = newChat;
@@ -531,7 +513,6 @@ actionButtons.forEach((b) => {
   };
 });
 
-/* ================= PANEL ================= */
 function openPanel() {
   panel.classList.add("open");
   if (voiceOnlyMode && recognition && !isListening) {
@@ -560,7 +541,6 @@ Tell me what you want to do next.`);
   system(`AI Mode: ${aiMode.toUpperCase()}`);
 }
 
-/*Greeting*/
 function proactiveGreeting() {
   const hour = new Date().getHours();
   let timeGreeting = "Hey";
@@ -571,14 +551,12 @@ function proactiveGreeting() {
 
   const name = aiMemory.name ? ` ${aiMemory.name}` : "";
 
-  // 🔕 Respect focus mode
   if (aiContext.focusMode) {
     return ai(`${timeGreeting}${name}. Focus mode is ON. Ready when you are.`);
   }
 
-  ai(`${timeGreeting}${name} 👋`);
+  ai(`${timeGreeting}${name} `);
 
-  // 🧠 Task-aware nudge
   if (user) {
     getDocs(collection(db, "users", user.uid, "tasks")).then((snap) => {
       const tasks = snap.docs.map((d) => d.data());
@@ -604,7 +582,7 @@ function startIdleCheck() {
     if (!messagesEl.innerHTML || aiContext.focusMode) return;
 
     ai(" I’m here if you want to plan something or add a task.");
-  }, 15000); // 15 sec idle
+  }, 15000);
 }
 
 function closePanel() {
@@ -616,7 +594,6 @@ function closePanel() {
   }
 }
 
-/* ================= MESSAGES ================= */
 function userMsg(text) {
   clearTimeout(idleTimer);
   append("karya-user", text);
@@ -654,7 +631,6 @@ function append(cls, text) {
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
-/* ================= HISTORY ================= */
 function save(item) {
   chatHistory.push(item);
   if (chatHistory.length > 120) chatHistory.shift();
@@ -694,7 +670,6 @@ function newChat() {
   };
 }
 
-/* ================= MAIN SEND ================= */
 async function onSend() {
   if (aiContext.processing) return;
 
@@ -704,7 +679,6 @@ async function onSend() {
   try {
     const text = inputEl.value.trim();
 
-    /* ================= KNOWLEDGE BASE ================= */
     const knowledgeAnswer = matchKnowledgeQuestion(text);
     if (knowledgeAnswer) {
       aiContext.lastDecision = {
@@ -714,7 +688,6 @@ async function onSend() {
       return ai(knowledgeAnswer.trim());
     }
 
-    /* ================= EXPLAIN AI DECISION ================= */
     if (/^why\??$|why did you|how did you decide/i.test(text)) {
       if (!aiContext.lastDecision) {
         return ai("I haven’t made a recent decision to explain yet.");
@@ -740,7 +713,6 @@ async function onSend() {
       );
     }
 
-    /* ================= AUTONOMOUS CONFIRMATION ================= */
     if (
       aiContext.pendingAutonomousAction &&
       /yes|okay|sure|do it|go ahead/i.test(text)
@@ -754,7 +726,6 @@ async function onSend() {
       }
     }
 
-    /* ================= LEARN USER NAME ================= */
     const nameMatch = text.match(/(my name is|i am)\s+([a-z ]+)/i);
     if (nameMatch) {
       aiMemory.name = nameMatch[2].trim();
@@ -764,7 +735,6 @@ async function onSend() {
 
     if (!text) return;
 
-    /* ================= FOCUS MODE ================= */
     if (/focus mode|deep work|help me focus/i.test(text)) {
       aiContext.focusMode = !aiContext.focusMode;
       localStorage.setItem(
@@ -779,7 +749,6 @@ async function onSend() {
       );
     }
 
-    /* ================= SAME AS YESTERDAY ================= */
     if (/same as yesterday|do same again/i.test(text)) {
       if (!lastAddedTask) {
         return ai("I don’t have a previous task to repeat yet.");
@@ -790,7 +759,6 @@ async function onSend() {
       );
     }
 
-    /* ================= TONE PREFERENCE ================= */
     if (/talk short|short replies/i.test(text)) {
       aiMemory.preferredTone = "short";
       saveAiMemory();
@@ -809,23 +777,111 @@ async function onSend() {
       return ai("Back to normal responses.");
     }
 
-    /* ================= USER MESSAGE ================= */
+    // --- Karya AI extra intents ---
+
+    // Edit task
+    if (/edit task|update task|change task/i.test(text)) {
+      aiContext.lastIntent = "edit-task";
+      ai("Tell me which task you want to edit and what should change.");
+      return;
+    }
+
+    // Delete task
+    if (/delete task|remove task|trash task/i.test(text)) {
+      aiContext.lastIntent = "delete-task";
+      ai("Which task should I delete?");
+      return;
+    }
+
+    // Show completed tasks
+    if (
+      /show completed|completed tasks|show done tasks|tasks i finished/i.test(
+        text
+      )
+    ) {
+      aiContext.lastIntent = "show-completed";
+      await showCompletedTasksFromAI();
+      aiContext.lastIntent = null;
+      return;
+    }
+
+    // Sorting and filtering
+    if (/sort tasks|filter tasks|reorder tasks|show only/i.test(text)) {
+      aiContext.lastIntent = "sort-filter";
+      ai(
+        "Tell me how: for example, 'by priority', 'by due date', or 'only today’s tasks'."
+      );
+      return;
+    }
+
+    // Theme change
+    if (/change theme|switch theme|dark mode|light mode/i.test(text)) {
+      aiContext.lastIntent = null;
+      toggleThemeFromAI(text);
+      return;
+    }
+
+    // Rating / feedback
+    if (/rate app|give feedback|feedback for karya|karya rating/i.test(text)) {
+      aiContext.lastIntent = "feedback";
+      ai("Share your feedback in one short sentence and I will save it.");
+      return;
+    }
+
+    // Show profile
+    if (/show my profile|my profile|who am i/i.test(text)) {
+      aiContext.lastIntent = "show-profile";
+      showUserProfileFromAI();
+      aiContext.lastIntent = null;
+      return;
+    }
+
+    // Sync my tasks
+    if (/sync my tasks|sync tasks|refresh tasks|reload tasks/i.test(text)) {
+      aiContext.lastIntent = "sync-tasks";
+      await syncTasksFromAI();
+      aiContext.lastIntent = null;
+      return;
+    }
+
     inputEl.value = "";
     userMsg(text);
 
-    // Auto-learn verbosity
     if (text.length < 15) aiMemory.preferredTone = "short";
     else if (text.length > 60) aiMemory.preferredTone = "motivational";
     saveAiMemory();
 
-    /* ================= CLARIFICATION RESUME ================= */
+    // Follow-up for special intents (edit/delete/feedback/sort)
+    if (aiContext.lastIntent === "edit-task") {
+      handleEditTaskFromAI(text);
+      aiContext.lastIntent = null;
+      return;
+    }
+
+    if (aiContext.lastIntent === "delete-task") {
+      handleDeleteTaskFromAI(text);
+      aiContext.lastIntent = null;
+      return;
+    }
+
+    if (aiContext.lastIntent === "feedback") {
+      await saveFeedbackFromAI(text);
+      aiContext.lastIntent = null;
+      return;
+    }
+
+    if (aiContext.lastIntent === "sort-filter") {
+      handleSortFilterFromAI(text);
+      aiContext.lastIntent = null;
+      return;
+    }
+
     if (aiContext.awaitingClarification) {
       const pending = aiContext.awaitingClarification;
       aiContext.awaitingClarification = null;
       return smartAdd(`${pending.text} ${text}`);
     }
 
-    /* ================= CORRECTION LEARNING ================= */
     if (
       detectCorrection(text) &&
       lastAddedTask &&
@@ -837,14 +893,13 @@ async function onSend() {
 
     updateContextFromText(text);
 
-    /* ================= ACTION ROUTING ================= */
     if (currentAction === "smart-add") return smartAdd(text);
     if (currentAction === "analyse") return analyse();
     if (currentAction === "reminders") return reminders();
+    if (currentAction === "completed") return showCompletedTasksFromAI();
 
     await chat(text);
 
-    /* ================= DEFER INTENT ================= */
     if (
       /later|not now|remind me later/i.test(text) &&
       aiContext.lastTaskMentioned
@@ -861,7 +916,6 @@ async function onSend() {
   }
 }
 
-/* ================= CHAT INTELLIGENCE ================= */
 async function chat(text) {
   let tasks = [];
   updatePersonaFromBehavior();
@@ -871,7 +925,6 @@ async function chat(text) {
     tasks = snap.docs.map((d) => d.data());
   }
 
-  /* ===== HYBRID DECISION ===== */
   if (aiMode === "local") {
     const decision = await karyaBrain({
       text,
@@ -903,8 +956,6 @@ async function chat(text) {
     );
   }
 
-  /* ================= PHASE 21: ONLINE AI ================= */
-
   if (isOnline && isComplexQuery(text)) {
     const online = await onlineBrain(
       `User tone: ${aiPersona.tone}.
@@ -916,12 +967,9 @@ async function chat(text) {
     return ai(online.reply);
   }
 
-  /* ===== ONLINE AI ===== */
   const online = await onlineBrain(text);
   return ai(online.reply);
 }
-
-/* ================= PHASE 4 SMART ADD ================= */
 
 function parseSmartDate(text) {
   const now = new Date();
@@ -956,7 +1004,6 @@ function parseSmartDate(text) {
 
 function detectPriority(text) {
   const t = text.toLowerCase();
-  // Apply learned corrections
   for (const phrase in aiCorrections.priorityFixes) {
     if (t.includes(phrase)) {
       return aiCorrections.priorityFixes[phrase];
@@ -1015,7 +1062,6 @@ function detectHabit(tasks) {
 }
 
 async function smartAdd(text) {
-  /* ---------- 1️⃣ TIME CLARIFICATION ---------- */
   const hasTime =
     /(today|tomorrow|am|pm|in \d+|morning|evening|night|noon)/i.test(text);
 
@@ -1029,16 +1075,12 @@ async function smartAdd(text) {
     );
   }
 
-  /* ---------- 2️⃣ AUTH CHECK ---------- */
   if (!user) return ai("Please login to save tasks.");
 
-  /* ---------- 3️⃣ PARSE DATA (ONCE) ---------- */
   const date = parseSmartDate(text);
 
-  // 🔧 FORCE priority detection FIRST (fixes high → medium bug)
   const priority = detectPriority(text) || "medium";
 
-  // safer title cleanup
   const title =
     text
       .replace(/^add\s+/i, "")
@@ -1057,7 +1099,6 @@ async function smartAdd(text) {
     createdAt: new Date().toISOString(),
   };
 
-  /* ---------- 4️⃣ OFFLINE MODE ---------- */
   if (!navigator.onLine) {
     queueOfflineAction({
       type: "addTask",
@@ -1071,14 +1112,12 @@ async function smartAdd(text) {
       "You're offline. Task saved locally and will sync automatically."
     );
   }
-  // 🧠 Adaptive priority assist (Phase 14)
   if (!/priority|high|low|medium/i.test(text)) {
     const bias = getUserPriorityBias();
     if (bias !== "medium") {
       taskPayload.priority = bias;
     }
   }
-  // 🧠 Predict missing scheduling
   if (!/today|tomorrow|am|pm|morning|evening|night/i.test(text)) {
     const bestHour = getMostActiveHour();
     if (bestHour !== null) {
@@ -1089,7 +1128,6 @@ Want me to schedule this task for that time?`
     }
   }
 
-  /* ---------- 5️⃣ ONLINE SAVE ---------- */
   await addDoc(collection(db, "users", user.uid, "tasks"), taskPayload);
 
   lastAddedTask = { name: title, priority };
@@ -1102,7 +1140,6 @@ Want me to schedule this task for that time?`
     data: { title, priority },
   });
 
-  /* ---------- 6️⃣ RESPONSE ---------- */
   ai(
     `Task added\n` +
       `${title}\n` +
@@ -1117,15 +1154,12 @@ Want me to schedule this task for that time?`
 function learnFromTask(task) {
   const hour = new Date(task.dueDate).getHours();
 
-  // Learn time preference
   behaviorMemory.taskAddTimes[hour] =
     (behaviorMemory.taskAddTimes[hour] || 0) + 1;
 
-  // Learn priority habit
   behaviorMemory.priorityUsage[task.priority] =
     (behaviorMemory.priorityUsage[task.priority] || 0) + 1;
 
-  // Learn frequent tasks
   const key = task.name.toLowerCase();
   behaviorMemory.frequentTasks[key] =
     (behaviorMemory.frequentTasks[key] || 0) + 1;
@@ -1135,7 +1169,6 @@ function learnFromTask(task) {
   saveBehaviorMemory();
 }
 
-/* ================= ANALYsE ================= */
 async function analyse() {
   if (!user) return ai("Login required.");
 
@@ -1146,7 +1179,7 @@ async function analyse() {
   const completed = tasks.filter((t) => t.completed).length;
   const coaching = generateCoaching(tasks);
 
-  ai(`📊 Productivity Analysis  
+  ai(` Productivity Analysis  
 Total: ${tasks.length}  
 Completed: ${completed}  
 Pending: ${pending}  
@@ -1182,7 +1215,6 @@ function getUserPriorityBias() {
   return "medium";
 }
 
-/* ================= REMINDERS ================= */
 async function reminders() {
   if (!user) return ai("Login required.");
 
@@ -1194,11 +1226,133 @@ async function reminders() {
 
   if (!upcoming.length) return ai("No upcoming tasks.");
 
-  ai("🔔 Upcoming tasks:");
+  ai(" Upcoming tasks:");
   upcoming.forEach((t) =>
     system(`${t.name} → ${new Date(t.dueDate).toLocaleString()}`)
   );
 }
+
+// === KARYA AI EXTRA HELPERS (Edit/Delete/Completed/Sort/Theme/Profile/Sync/Feedback) ===
+
+// Completed tasks list
+async function showCompletedTasksFromAI() {
+  if (!user) return ai("Login required.");
+
+  const snap = await getDocs(collection(db, "users", user.uid, "tasks"));
+  const completed = snap.docs.map((d) => d.data()).filter((t) => t.completed);
+
+  if (!completed.length) {
+    ai("You have no completed tasks yet.");
+    return;
+  }
+
+  ai("Here are some of your completed tasks:");
+  completed
+    .slice(0, 7)
+    .forEach((t) =>
+      system(`✔ ${t.name || t.title || "Task"} (${t.priority || "medium"})`)
+    );
+}
+
+// Theme change from AI
+function toggleThemeFromAI(text) {
+  const lower = text.toLowerCase();
+
+  if (lower.includes("dark")) {
+    if (window.setTheme) window.setTheme("dark");
+    ai("Switched to dark theme.");
+    return;
+  }
+
+  if (lower.includes("light")) {
+    if (window.setTheme) window.setTheme("light");
+    ai("Switched to light theme.");
+    return;
+  }
+
+  if (window.toggleTheme) {
+    window.toggleTheme();
+    ai("Theme toggled.");
+  } else {
+    ai("Theme controls are not available in this version.");
+  }
+}
+
+// Save feedback/rating
+async function saveFeedbackFromAI(message) {
+  if (!user) return ai("Login required before saving feedback.");
+
+  try {
+    await addDoc(collection(db, "users", user.uid, "feedback"), {
+      text: message,
+      createdAt: Date.now(),
+    });
+
+    ai("Thanks for your feedback. I have saved it.");
+  } catch (e) {
+    console.error("Feedback save failed:", e);
+    ai("I could not save your feedback right now. Please try again later.");
+  }
+}
+
+// Show profile info
+function showUserProfileFromAI() {
+  if (!user) return ai("You are not logged in.");
+
+  const name = user.displayName || aiMemory.name || "friend";
+  const email = user.email || "no email";
+
+  ai(`Your profile:
+Name: ${name}
+Email: ${email}`);
+}
+
+// Force sync of tasks (reload UI list)
+async function syncTasksFromAI() {
+  try {
+    if (window.loadTasksFromFirestore) {
+      await window.loadTasksFromFirestore();
+      ai("Your tasks are now synced from the cloud.");
+    } else {
+      // fall back: just run the pending-action sync you already have
+      await syncPendingActions();
+    }
+  } catch (e) {
+    console.error("Sync error:", e);
+    ai("I tried to sync your tasks, but something went wrong.");
+  }
+}
+
+// Delegate editing to UI layer
+function handleEditTaskFromAI(text) {
+  if (window.editTaskFromAI) {
+    window.editTaskFromAI(text);
+    ai("Okay, I have sent the edit request to your task list.");
+  } else {
+    ai("Editing via AI is not fully wired yet in this build.");
+  }
+}
+
+// Delegate delete to UI layer
+function handleDeleteTaskFromAI(text) {
+  if (window.deleteTaskFromAI) {
+    window.deleteTaskFromAI(text);
+    ai("I asked the task list to delete that task.");
+  } else {
+    ai("Deleting tasks via AI is not available in this build.");
+  }
+}
+
+// Sorting / filtering delegation
+function handleSortFilterFromAI(text) {
+  if (window.sortFilterTasksFromAI) {
+    window.sortFilterTasksFromAI(text);
+    ai("Okay, updating your task view.");
+  } else {
+    ai("Sorting and filtering from AI is not enabled yet.");
+  }
+}
+
 async function proactiveCheck() {
   if (!user) return;
 
@@ -1324,11 +1478,9 @@ function predictNextTask(tasks) {
   const pending = tasks.filter((t) => !t.completed);
   if (!pending.length) return null;
 
-  // 1️⃣ High priority first
   const high = pending.find((t) => t.priority === "high");
   if (high) return high;
 
-  // 2️⃣ Earliest due date
   return pending.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))[0];
 }
 
@@ -1369,7 +1521,7 @@ async function morningPlanner() {
 function typeText(element, text) {
   return new Promise((resolve) => {
     let i = 0;
-    const speed = 18; // typing speed (lower = faster)
+    const speed = 18;
 
     function type() {
       if (i < text.length) {
@@ -1384,7 +1536,6 @@ function typeText(element, text) {
     type();
   });
 }
-/* ================= AI VOICE OUTPUT ================= */
 function speak(text) {
   if (!speechEnabled) return;
   if (!("speechSynthesis" in window)) return;
@@ -1399,10 +1550,8 @@ function speak(text) {
 function normalizeAIReply(text) {
   if (!text) return "";
 
-  // Remove overconfidence phrases
   text = text.replace(/(definitely|absolutely|guaranteed|always)/gi, "usually");
 
-  // Trim excessive length
   if (text.length > 700) {
     text = text.slice(0, 700) + "...";
   }
@@ -1430,7 +1579,7 @@ function processSpeechQueue() {
 
   utter.onend = () => {
     isSpeaking = false;
-    processSpeechQueue(); // speak next
+    processSpeechQueue();
   };
 
   utter.onerror = () => {
@@ -1506,7 +1655,6 @@ async function weeklyReport() {
 • Keep building consistency`
   );
 }
-/* ================= OFFLINE QUEUE (PHASE 13) ================= */
 
 function queueOfflineAction(action) {
   const queue = JSON.parse(localStorage.getItem("karya_pending_actions")) || [];
@@ -1518,7 +1666,6 @@ function queueOfflineAction(action) {
 
   localStorage.setItem("karya_pending_actions", JSON.stringify(queue));
 }
-//
 async function syncPendingActions() {
   if (!user) return;
 
@@ -1542,7 +1689,6 @@ async function syncPendingActions() {
   ai("All offline tasks synced successfully.");
 }
 
-//
 function startIntelligence() {
   if (intelligenceStarted) return;
   intelligenceStarted = true;
@@ -1584,7 +1730,6 @@ function startIntelligence() {
 
     const idleTime = Date.now() - lastUserActivity;
 
-    // 90 seconds idle
     if (idleTime > 90000) {
       proactiveCooldown = true;
       await proactiveCheck();
@@ -1592,7 +1737,6 @@ function startIntelligence() {
       setTimeout(() => (proactiveCooldown = false), 120000);
     }
 
-    // 🧠 Predictive idle nudge
     const activeHour = getMostActiveHour();
     if (
       activeHour !== null &&
@@ -1632,8 +1776,6 @@ function applyPersonaTone(text) {
   }
 }
 
-//
-/* ================= OFFLINE SYNC ================= */
 async function syncOfflineTasks() {
   if (!user || !navigator.onLine || !offlineQueue.length) return;
 
@@ -1651,26 +1793,21 @@ async function syncOfflineTasks() {
   ai("Offline tasks synced successfully.");
 }
 
-//
 function updateContextFromText(text) {
   const t = text.toLowerCase();
 
-  // Detect goals
   if (t.includes("i want to") || t.includes("my goal")) {
     aiContext.goal = text;
   }
 
-  // Detect focus for today
   if (t.includes("today") && (t.includes("finish") || t.includes("complete"))) {
     aiContext.goal = text;
   }
 
-  // Detect mood
   if (/stress|overwhelm|tired|burnout/.test(t)) aiContext.mood = "stressed";
   else if (/sad|down|depressed/.test(t)) aiContext.mood = "sad";
   else if (/happy|excited|great/.test(t)) aiContext.mood = "positive";
   else aiContext.mood = "neutral";
-  // Track last mentioned task name
   const taskMatch = text.match(/add (.+)/i);
   if (taskMatch) {
     aiContext.lastTaskMentioned = taskMatch[1];

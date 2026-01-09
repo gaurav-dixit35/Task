@@ -7,12 +7,11 @@
 
 body {
   margin: 0;
-  font-family: 'Segoe UI', sans-serif;
+  font-family: "Segoe UI", sans-serif;
   background: var(--bg-color);
   color: var(--text-color);
 }
 
-/* Header */
 .settings-header {
   position: sticky;
   top: 0;
@@ -50,7 +49,7 @@ body {
 }
 
 .branding-text {
-  font-family: 'Orbitron', sans-serif;
+  font-family: "Orbitron", sans-serif;
   font-weight: 800;
   font-size: 1.5em;
   color: #fcd34d;
@@ -58,7 +57,6 @@ body {
   text-shadow: 0 0 6px rgba(255, 215, 0, 0.5);
 }
 
-/* Theme Toggle */
 .theme-toggle {
   display: flex;
   align-items: center;
@@ -80,7 +78,6 @@ body {
   color: #fcd34d;
 }
 
-/* Main content */
 main {
   max-width: 800px;
   margin: 30px auto;
@@ -146,7 +143,6 @@ h1 {
   background: #b91c1c;
 }
 
-/* Analytics Output */
 #analyticsOutput {
   margin-top: 10px;
   font-size: 14px;
@@ -157,7 +153,6 @@ h1 {
   white-space: pre-wrap;
 }
 
-/* Theme Picker */
 #themeColorPicker {
   border: none;
   padding: 0;
@@ -167,7 +162,6 @@ h1 {
   cursor: pointer;
 }
 
-/* Footer */
 footer {
   text-align: center;
   margin: 40px 0 20px;
@@ -285,19 +279,23 @@ footer {
 }
 
 @keyframes bounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-8px); }
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
 }
- //notification
- .setting-block {
-  background: #1e293b; /* Match your card background */
+.setting-block {
+  background: #1e293b;
   padding: 20px;
   border-radius: 12px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
-  max-width: 500px; /* Wider like the theme customizer */
+  max-width: 500px;
   margin: 20px auto;
   color: #f1f5f9;
-  font-family: 'Segoe UI', sans-serif;
+  font-family: "Segoe UI", sans-serif;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -306,7 +304,7 @@ footer {
 .setting-block label {
   font-size: 1.2rem;
   font-weight: bold;
-  color: #fbbf24; /* Same yellow heading */
+  color: #fbbf24;
 }
 
 .setting-block p {
@@ -338,7 +336,7 @@ footer {
 
 #previewSound {
   background: #38bdf8;
-  color:rgb(27, 53, 113);
+  color: rgb(27, 53, 113);
   border: none;
   padding: 10px 15px;
   border-radius: 6px;

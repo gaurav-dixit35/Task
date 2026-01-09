@@ -321,11 +321,11 @@ if ("serviceWorker" in navigator) {
     .then(() => console.log("✅ SW Registered"))
     .catch((e) => console.error("SW Error:", e));
 }
-// 🔔 Run Reminder Check Every Minute
+//  Run Reminder Check Every Minute
 setInterval(checkDueReminders, 60000);
 checkDueReminders(); // Run immediately after page load
 
-// 🔔 Updated Reminder Check with LocalStorage Sound Selection
+//  Updated Reminder Check with LocalStorage Sound Selection
 function checkDueReminders() {
   if (!("Notification" in window)) return;
 
@@ -341,7 +341,7 @@ function checkDueReminders() {
 
     const due = new Date(task.dueDate).getTime();
 
-    // 🔕 Snoozed
+    //  Snoozed
     if (task.snoozedUntil && now < task.snoozedUntil) return;
 
     const diff = due - now;
@@ -404,3 +404,110 @@ async function snoozeTask(task, minutes = 10) {
     warned: false,
   });
 }
+// === Karya AI hooks ===
+
+// Called from ai.js to reload tasks from Firestore
+window.loadTasksFromFirestore = async function () {
+  if (!user) return;
+  await loadTasks();
+};
+
+// Called from ai.js: text like "Change Buy groceries to high priority tomorrow 6 pm"
+window.editTaskFromAI = async function (text) {
+  if (!user || !tasks.length) return;
+
+  // Try to find task by name substring
+  const lower = text.toLowerCase();
+  const match = tasks.find((t) =>
+    t.name.toLowerCase().includes(extractTaskNameForAI(text).toLowerCase())
+  );
+
+  if (!match) {
+    alert("Karya AI: I couldn't find that task.");
+    return;
+  }
+
+  const updates = {};
+
+  // Priority
+  if (/high priority|priority high|make it high/i.test(lower))
+    updates.priority = "high";
+  else if (/medium priority|priority medium/i.test(lower))
+    updates.priority = "medium";
+  else if (/low priority|priority low|make it low/i.test(lower))
+    updates.priority = "low";
+
+  // Due date/time – very simple: if it says "tomorrow"
+  if (/tomorrow/i.test(lower)) {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    updates.dueDate = d.toISOString();
+  }
+
+  if (Object.keys(updates).length === 0) {
+    alert("Karya AI: I understood the task, but not what to change.");
+    return;
+  }
+
+  await updateTaskInFirestore(match.id, updates);
+
+  // Update local array
+  Object.assign(match, updates);
+  renderTasks();
+};
+
+// Helper to guess task name from AI text
+function extractTaskNameForAI(text) {
+  // very basic: after "change" or "edit"
+  const m = text.match(/(change|edit|update)\s+(.+?)(\sto|\sfor|$)/i);
+  return m ? m[2].trim() : text;
+}
+
+// Called from ai.js: text like "Delete Buy groceries"
+window.deleteTaskFromAI = async function (text) {
+  if (!user || !tasks.length) return;
+
+  const lower = text.toLowerCase();
+
+  // If user says "delete first task" etc, you could handle that here too.
+  const match = tasks.find((t) => lower.includes(t.name.toLowerCase()));
+
+  if (!match) {
+    alert("Karya AI: I couldn't find that task to delete.");
+    return;
+  }
+
+  lastDeleted = { ...match };
+  tasks = tasks.filter((t) => t.id !== match.id);
+  await deleteTaskFromFirestore(match.id);
+  renderTasks();
+  showUndoSnackbar();
+};
+
+// Called from ai.js: text like "by priority" or "only completed"
+window.sortFilterTasksFromAI = function (text) {
+  const lower = text.toLowerCase();
+
+  if (sortSelect) {
+    if (lower.includes("priority")) sortSelect.value = "priority";
+    else if (lower.includes("due")) sortSelect.value = "due";
+    else if (lower.includes("completed") || lower.includes("done"))
+      sortSelect.value = "completed";
+    else sortSelect.value = "default";
+  }
+
+  // Simple filter example: "only today"
+  if (searchInput && /only today/i.test(lower)) {
+    // You might instead add a dedicated filter; here we just clear search.
+    searchInput.value = "";
+  }
+
+  renderTasks();
+};
+// Apply saved primary color on home
+window.addEventListener("load", () => {
+  const color = localStorage.getItem("customColor");
+  if (color) {
+    document.documentElement.style.setProperty("--primary-color", color);
+  }
+});

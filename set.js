@@ -40,8 +40,8 @@ const installSuccess = document.getElementById("installSuccess");
 
 let user = null;
 let tasks = [];
+let tasksChart = null;
 
-// ✅ Auth check
 onAuthStateChanged(auth, async (u) => {
   if (!u) {
     window.location.href = "login.html";
@@ -51,7 +51,6 @@ onAuthStateChanged(auth, async (u) => {
   }
 });
 
-// 📥 Fetch tasks
 async function fetchTasks() {
   tasks = [];
   const q = collection(db, "users", user.uid, "tasks");
@@ -61,13 +60,11 @@ async function fetchTasks() {
   });
 }
 
-// 🔓 Logout
 logoutBtn?.addEventListener("click", async () => {
   await signOut(auth);
   window.location.href = "login.html";
 });
 
-// 🗑️ Clear all tasks
 clearTasksBtn?.addEventListener("click", async () => {
   if (confirm("Are you sure you want to delete ALL your tasks?")) {
     for (const task of tasks) {
@@ -78,7 +75,6 @@ clearTasksBtn?.addEventListener("click", async () => {
   }
 });
 
-// 📊 Analytics
 loadAnalyticsBtn?.addEventListener("click", () => {
   const stats = {};
   tasks.forEach((task) => {
@@ -94,9 +90,47 @@ loadAnalyticsBtn?.addEventListener("click", () => {
     output += `📅 ${date} — ✅ ${stats[date].completed} | 🕒 ${stats[date].pending}\n`;
   }
   analyticsOutput.textContent = output || "No tasks found.";
+  renderTasksChart(stats);
 });
+function renderTasksChart(stats) {
+  const labels = Object.keys(stats);
+  const completedData = labels.map((d) => stats[d].completed);
+  const pendingData = labels.map((d) => stats[d].pending);
 
-// 📤 Export JSON
+  const canvas = document.getElementById("tasksChart");
+  if (!canvas) return;
+
+  if (tasksChart) tasksChart.destroy();
+
+  tasksChart = new Chart(canvas, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "Completed",
+          data: completedData,
+          backgroundColor: "#22c55e",
+        },
+        {
+          label: "Pending",
+          data: pendingData,
+          backgroundColor: "#f97316",
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: "bottom" },
+      },
+      scales: {
+        y: { beginAtZero: true },
+      },
+    },
+  });
+}
+
 exportJSONBtn?.addEventListener("click", () => {
   const blob = new Blob([JSON.stringify(tasks, null, 2)], {
     type: "application/json",
@@ -105,7 +139,6 @@ exportJSONBtn?.addEventListener("click", () => {
   downloadFile(url, "tasks.json");
 });
 
-// 📤 Export CSV
 exportCSVBtn?.addEventListener("click", () => {
   const headers = ["Name", "Priority", "Due Date", "Completed"];
   const rows = tasks.map((t) => [
@@ -120,12 +153,10 @@ exportCSVBtn?.addEventListener("click", () => {
   downloadFile(url, "tasks.csv");
 });
 
-// 🔁 Clear export view
 clearExportBtn?.addEventListener("click", () => {
   analyticsOutput.textContent = "";
 });
 
-// ⬇️ Download helper
 function downloadFile(url, filename) {
   const a = document.createElement("a");
   a.href = url;
@@ -134,14 +165,12 @@ function downloadFile(url, filename) {
   URL.revokeObjectURL(url);
 }
 
-// 🎨 Color Picker
 themeColorPicker?.addEventListener("input", (e) => {
   const color = e.target.value;
   document.documentElement.style.setProperty("--primary-color", color);
   localStorage.setItem("customColor", color);
 });
 
-// 🌓 Theme
 window.addEventListener("load", () => {
   const color = localStorage.getItem("customColor");
   if (color) {
@@ -162,14 +191,12 @@ themeToggle?.addEventListener("change", () => {
     document.body.classList.contains("dark") ? "dark" : "light"
   );
 });
-// 🎵 Load saved sound preference
 const soundSelect = document.getElementById("soundSelect");
 window.addEventListener("load", () => {
   const savedSound = localStorage.getItem("notificationSound") || "default";
   if (soundSelect) soundSelect.value = savedSound;
 });
 
-//notification sound
 document.getElementById("previewSound")?.addEventListener("click", () => {
   const selected = document.getElementById("soundSelect").value;
   const audio = new Audio(`sounds/${selected}.mp3`);
@@ -180,7 +207,6 @@ document.getElementById("soundSelect")?.addEventListener("change", () => {
   localStorage.setItem("notificationSound", selected);
 });
 
-// ℹ️ Dropdown info sections
 infoToggle?.addEventListener("click", () => {
   infoDropdown.style.display =
     infoDropdown.style.display === "block" ? "none" : "block";
@@ -204,26 +230,21 @@ aboutOption?.addEventListener("click", () => showSection(aboutContainer));
 termsOption?.addEventListener("click", () => showSection(termsContainer));
 contactOption?.addEventListener("click", () => showSection(contactContainer));
 
-// 💾 Install App support
 let deferredPrompt;
 
-// Hide button by default
 installBtn.style.display = "none";
 
 window.addEventListener("beforeinstallprompt", (e) => {
   e.preventDefault();
   deferredPrompt = e;
 
-  // Show install button for BOTH desktop & mobile
   installBtn.style.display = "block";
 });
 
-// Open install popup / container
 installBtn.addEventListener("click", () => {
   installContainer.style.display = "block";
 });
 
-// Confirm install
 confirmInstallBtn.addEventListener("click", async () => {
   if (!deferredPrompt) return;
 
