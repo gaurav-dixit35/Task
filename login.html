@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Login | Task App</title>
 
+    <<<<<<< HEAD =======
+    <!-- App Icon -->
+    >>>>>>> 78426a18c907b66b8ddf64200927a4b95aa94dff
     <link rel="icon" href="icons/icon-192.png" type="image/png" />
     <link rel="manifest" href="manifest.json" />
     <meta name="theme-color" content="#4f46e5" />
@@ -40,7 +43,18 @@
           #05003d,
           #00002e,
           #7a6402,
-          #716102
+          #716102 #2e003e,
+          /* Very dark purple */ #3a0050,
+          /* Dark violet */ #470062,
+          /* Deep purple */ #53007a,
+          /* Purple indigo */ #3c0078,
+          /* Indigo violet */ #2b006e,
+          /* Dark indigo */ #1b005d,
+          /* Deep blue-indigo */ #10004d,
+          /* Very dark blue */ #05003d,
+          /* Near navy */ #00002e,
+          /* Deep navy blue */ #7a6402,
+          /* Deep navy blue */ #716102 /* Deep navy blue */
         );
         background-size: 400% 400%;
         animation: gradientFlow 15s ease infinite;
@@ -145,6 +159,10 @@
         letter-spacing: 1px;
         color: #fcd34d;
         font-size: 1.5em;
+        font-weight: 800; /* Bold */
+        letter-spacing: 1px;
+        color: #fcd34d; /* Optional: Highlight color */
+        font-size: 1.5em; /* Optional: Make "Karya" stand out */
       }
 
       @keyframes pulse {
@@ -172,6 +190,10 @@
 
     <script type="module" src="login.js"></script>
 
+    <!-- Firebase Login Logic -->
+    <script type="module" src="login.js"></script>
+
+    <!-- PWA Service Worker Registration -->
     <script>
       if ("serviceWorker" in navigator) {
         navigator.serviceWorker
