@@ -1,9 +1,11 @@
-const GEMINI_API_KEY = "PASTE_YOUR_KEY_HERE";
+const GEMINI_API_KEY = "AIzaSyChYIG9eDuNFa84BYsBxuR-l8DRoJcP_Yk";
 
 export async function onlineBrain(prompt) {
   try {
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${
+        AIzaSyChYIG9eDuNFa84BYsBxuR - l8DRoJcP_Yk
+      }`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

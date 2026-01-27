@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Login | Task App</title>
 
-    <!-- App Icon -->
     <link rel="icon" href="icons/icon-192.png" type="image/png" />
     <link rel="manifest" href="manifest.json" />
     <meta name="theme-color" content="#4f46e5" />
@@ -30,18 +29,18 @@
         justify-content: center;
         background: linear-gradient(
           135deg,
-          #2e003e,
-          /* Very dark purple */ #3a0050,
-          /* Dark violet */ #470062,
-          /* Deep purple */ #53007a,
-          /* Purple indigo */ #3c0078,
-          /* Indigo violet */ #2b006e,
-          /* Dark indigo */ #1b005d,
-          /* Deep blue-indigo */ #10004d,
-          /* Very dark blue */ #05003d,
-          /* Near navy */ #00002e,
-          /* Deep navy blue */ #7a6402,
-          /* Deep navy blue */ #716102 /* Deep navy blue */
+          #05e8e8,
+          #3a0050,
+          #470062,
+          #53007a,
+          #3c0078,
+          #2b006e,
+          #1b005d,
+          #10004d,
+          #05003d,
+          #00002e,
+          #7a6402,
+          #716102
         );
         background-size: 400% 400%;
         animation: gradientFlow 15s ease infinite;
@@ -133,13 +132,19 @@
         font-family: "Poppins", sans-serif;
         font-weight: 500;
       }
+      footer {
+        text-align: center;
+        padding: 12px 0;
+        font-size: 14px;
+        color: #aaa;
+      }
 
       .karya-text {
         font-family: "Orbitron", sans-serif;
-        font-weight: 800; /* Bold */
+        font-weight: 800;
         letter-spacing: 1px;
-        color: #fcd34d; /* Optional: Highlight color */
-        font-size: 1.5em; /* Optional: Make "Karya" stand out */
+        color: #fcd34d;
+        font-size: 1.5em;
       }
 
       @keyframes pulse {
@@ -164,20 +169,15 @@
 
       <button id="loginBtn">Login with Google</button>
     </div>
-    <footer>
-      <p>© 2025 Karya. All rights reserved. Gaurav Dixit.</p>
-    </footer>
 
-    <!-- Firebase Login Logic -->
     <script type="module" src="login.js"></script>
 
-    <!-- PWA Service Worker Registration -->
     <script>
       if ("serviceWorker" in navigator) {
         navigator.serviceWorker
           .register("service-worker.js")
-          .then(() => console.log("✅ Service Worker Registered"))
-          .catch((err) => console.error("❌ SW registration failed:", err));
+          .then(() => console.log("Service Worker Registered"))
+          .catch((err) => console.error(" SW registration failed:", err));
       }
     </script>
   </body>

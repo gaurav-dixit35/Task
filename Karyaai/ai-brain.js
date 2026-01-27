@@ -1,9 +1,3 @@
-// ai-brain.js
-// KARYA AI BRAIN 🧠
-// PHASE 4 – REAL INTELLIGENCE (FINAL)
-// Smart • Context-aware • Emotion-aware • Habit-aware
-// Zero API • Zero Cost • Production Ready
-
 export async function karyaBrain({
   text,
   mode,
@@ -16,9 +10,7 @@ export async function karyaBrain({
   const prefersShort = memory.preferredTone === "short";
   const prefersMotivation = memory.preferredTone === "motivational";
 
-  /* ================= EMOTION ================= */
   const emotion = detectEmotion(t);
-  // 🔕 Focus Mode: reduce chatter
   if (context.focusMode && !text.startsWith("add")) {
     return {
       type: "chat",
@@ -26,7 +18,6 @@ export async function karyaBrain({
     };
   }
 
-  /* ================= INTENT CONFIDENCE ================= */
   if (isUnclearIntent(t) && (t.startsWith("add") || t.includes("schedule"))) {
     return {
       type: "chat",
@@ -38,7 +29,6 @@ export async function karyaBrain({
     };
   }
 
-  /* ================= MOTIVATION ================= */
   if (containsAny(t, ["motivation", "lazy", "tired", "give up"])) {
     return {
       type: "chat",
@@ -55,7 +45,6 @@ export async function karyaBrain({
     };
   }
 
-  /* ================= GREETINGS ================= */
   if (["hi", "hello", "hey"].includes(t)) {
     const name = memory.name ? ` ${memory.name}` : "";
     return {
@@ -66,7 +55,6 @@ export async function karyaBrain({
     };
   }
 
-  /* ================= APP KNOWLEDGE ================= */
   if (containsAny(t, ["what is this ai", "about this ai"])) {
     return {
       type: "chat",
@@ -83,22 +71,18 @@ export async function karyaBrain({
     };
   }
 
-  /* ================= TASK INTENT ================= */
   if (t.startsWith("add ") || containsAny(t, ["schedule", "plan"])) {
     return { type: "smart-add" };
   }
 
-  /* ================= ANALYSIS ================= */
   if (containsAny(t, ["analyse", "progress", "stats"])) {
     return { type: "analyse" };
   }
 
-  /* ================= REMINDERS ================= */
   if (containsAny(t, ["reminder", "remind"])) {
     return { type: "reminders" };
   }
 
-  /* ================= HABIT DETECTION ================= */
   const habitHint = detectHabit(tasks);
   if (habitHint) {
     return {
@@ -107,7 +91,6 @@ export async function karyaBrain({
     };
   }
 
-  /* ================= PRODUCTIVITY COACHING ================= */
   if (containsAny(t, ["help me focus", "advice", "guide me"])) {
     return {
       type: "chat",
@@ -117,16 +100,11 @@ export async function karyaBrain({
     };
   }
 
-  /* ================= CONTEXTUAL CHAT ================= */
   return {
     type: "chat",
     reply: toneReply(emotion, smartChat(text, tasks, context), memory),
   };
 }
-
-/* ================================================= */
-/* =================== HELPERS ===================== */
-/* ================================================= */
 
 function random(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
@@ -136,13 +114,11 @@ function containsAny(text, keywords) {
   return keywords.some((k) => text.includes(k));
 }
 
-/* ---------- Intent Confidence ---------- */
 function isUnclearIntent(text) {
   const weakWords = ["sometime", "later", "soon", "maybe", "not sure"];
   return weakWords.some((w) => text.includes(w));
 }
 
-/* ---------- Habit Detection ---------- */
 function detectHabit(tasks) {
   if (!tasks.length) return null;
 
@@ -160,7 +136,6 @@ function detectHabit(tasks) {
 Want to turn this into a routine?`;
 }
 
-/* ---------- Productivity Advice ---------- */
 function productivityAdvice(tasks) {
   const pending = tasks.filter((t) => !t.completed);
 
@@ -176,7 +151,6 @@ function productivityAdvice(tasks) {
   return ` Pick the easiest task and finish it fast. Momentum matters.`;
 }
 
-/* ---------- Smart Chat ---------- */
 function smartChat(text, tasks, context) {
   const t = text.toLowerCase();
 
@@ -202,7 +176,6 @@ function smartChat(text, tasks, context) {
   return "I’m listening  What would you like to do next?";
 }
 
-/* ---------- Emotion ---------- */
 function detectEmotion(text) {
   if (/stress|overwhelm|pressure|burnout/.test(text)) return "stressed";
   if (/sad|depressed|down|hopeless/.test(text)) return "sad";
@@ -211,11 +184,9 @@ function detectEmotion(text) {
   return "neutral";
 }
 
-/* ---------- Tone Control ---------- */
 function toneReply(emotion, reply, memory = {}) {
   let finalReply = reply;
 
-  // 🔊 Tone preference
   if (memory.preferredTone === "short") {
     finalReply = reply.split("\n")[0];
   }

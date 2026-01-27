@@ -1,5 +1,3 @@
-// Offline intelligence rules (Phase 2 will expand massively)
-
 export function smartSuggestions(tasks) {
   if (!tasks.length) return "You have no tasks yet! Start by adding one.";
 
@@ -7,7 +5,7 @@ export function smartSuggestions(tasks) {
   const completed = tasks.filter((t) => t.completed).length;
 
   return `
-📊 Your Productivity Summary
+ Your Productivity Summary
 ---------------------------
 Completed: ${completed}
 Pending: ${pending}
