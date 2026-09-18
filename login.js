@@ -6,6 +6,7 @@ import {
 
 const loginBtn = document.getElementById("loginBtn");
 const loginStatus = document.getElementById("loginStatus");
+<<<<<<< HEAD
 
 onAuthStateChanged(auth, (user) => {
   if (user) {
@@ -13,6 +14,15 @@ onAuthStateChanged(auth, (user) => {
   }
 });
 
+=======
+
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    window.location.href = "index.html";
+  }
+});
+
+>>>>>>> ecd5a0ddec7613f91d3f6e408d2e492a258c1a72
 loginBtn.addEventListener("click", async () => {
   loginBtn.disabled = true;
   loginStatus.textContent = "Opening secure Google sign-in…";
