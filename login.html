@@ -1,206 +1,68 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Login | Task App</title>
-
-    <<<<<<< HEAD =======
-    <!-- App Icon -->
-    >>>>>>> 78426a18c907b66b8ddf64200927a4b95aa94dff
+    <title>Welcome to Karya</title>
     <link rel="icon" href="icons/icon-192.png" type="image/png" />
     <link rel="manifest" href="manifest.json" />
-    <meta name="theme-color" content="#4f46e5" />
-    <link rel="stylesheet" href="style.css" />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600&family=Poppins:wght@500&display=swap"
-      rel="stylesheet"
-    />
-
+    <meta name="theme-color" content="#111827" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Orbitron:wght@700;800&display=swap" rel="stylesheet" />
     <style>
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
-
-      body {
-        font-family: "Segoe UI", sans-serif;
-        height: 100vh;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: linear-gradient(
-          135deg,
-          #05e8e8,
-          #3a0050,
-          #470062,
-          #53007a,
-          #3c0078,
-          #2b006e,
-          #1b005d,
-          #10004d,
-          #05003d,
-          #00002e,
-          #7a6402,
-          #716102 #2e003e,
-          /* Very dark purple */ #3a0050,
-          /* Dark violet */ #470062,
-          /* Deep purple */ #53007a,
-          /* Purple indigo */ #3c0078,
-          /* Indigo violet */ #2b006e,
-          /* Dark indigo */ #1b005d,
-          /* Deep blue-indigo */ #10004d,
-          /* Very dark blue */ #05003d,
-          /* Near navy */ #00002e,
-          /* Deep navy blue */ #7a6402,
-          /* Deep navy blue */ #716102 /* Deep navy blue */
-        );
-        background-size: 400% 400%;
-        animation: gradientFlow 15s ease infinite;
-        overflow: hidden;
-      }
-
-      @keyframes gradientFlow {
-        0% {
-          background-position: 0% 50%;
-        }
-        50% {
-          background-position: 100% 50%;
-        }
-        100% {
-          background-position: 0% 50%;
-        }
-      }
-
-      .container {
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 20px;
-        padding: 3rem 2.5rem;
-        backdrop-filter: blur(16px) saturate(180%);
-        -webkit-backdrop-filter: blur(16px) saturate(180%);
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
-        text-align: center;
-        width: 90%;
-        max-width: 400px;
-        color: white;
-        position: relative;
-      }
-
-      .container h1 {
-        font-size: 1.8rem;
-        margin-bottom: 2rem;
-        font-weight: 600;
-        letter-spacing: 1px;
-      }
-
-      .logo {
-        position: absolute;
-        top: -40px;
-        left: 50%;
-        transform: translateX(-50%);
-        background: white;
-        border-radius: 50%;
-        padding: 10px;
-        box-shadow: 0 0 20px #4f46e5aa;
-      }
-
-      .logo img {
-        height: 48px;
-        width: 48px;
-      }
-
-      #loginBtn {
-        background: #4f46e5;
-        color: white;
-        padding: 0.75rem 1.5rem;
-        border: none;
-        border-radius: 50px;
-        font-size: 1rem;
-        cursor: pointer;
-        box-shadow: 0 0 10px #4f46e5, 0 0 20px #4f46e580;
-        transition: all 0.3s ease;
-        position: relative;
-        overflow: hidden;
-      }
-
-      #loginBtn::before {
-        content: "";
-        position: absolute;
-        top: -50%;
-        left: -50%;
-        width: 200%;
-        height: 200%;
-        background: radial-gradient(circle, #ffffff33 10%, transparent 10.01%);
-        background-size: 10px 10px;
-        animation: pulse 2s linear infinite;
-        opacity: 0.3;
-        z-index: 0;
-      }
-
-      #loginBtn:hover {
-        background: #6c63ff;
-        box-shadow: 0 0 20px #6c63ff, 0 0 40px #6c63ff88;
-      }
-      .login-text {
-        font-family: "Poppins", sans-serif;
-        font-weight: 500;
-      }
-      footer {
-        text-align: center;
-        padding: 12px 0;
-        font-size: 14px;
-        color: #aaa;
-      }
-
-      .karya-text {
-        font-family: "Orbitron", sans-serif;
-        font-weight: 800;
-        letter-spacing: 1px;
-        color: #fcd34d;
-        font-size: 1.5em;
-        font-weight: 800; /* Bold */
-        letter-spacing: 1px;
-        color: #fcd34d; /* Optional: Highlight color */
-        font-size: 1.5em; /* Optional: Make "Karya" stand out */
-      }
-
-      @keyframes pulse {
-        0% {
-          transform: rotate(0deg);
-        }
-        100% {
-          transform: rotate(360deg);
-        }
-      }
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      body { min-height: 100vh; margin: 0; display: grid; place-items: center; overflow: hidden; padding: 24px; font-family: "DM Sans", system-ui, sans-serif; color: #eef2ff; background: radial-gradient(circle at 15% 15%, #4338ca 0, transparent 30%), radial-gradient(circle at 85% 82%, #0e7490 0, transparent 28%), #0b1020; }
+      .login-shell { width: min(100%, 920px); display: grid; grid-template-columns: 1.1fr .9fr; overflow: hidden; border: 1px solid rgba(148,163,184,.25); border-radius: 24px; background: rgba(15,23,42,.76); box-shadow: 0 24px 90px rgba(0,0,0,.42); backdrop-filter: blur(20px); }
+      .login-intro { padding: clamp(32px, 6vw, 72px); background: linear-gradient(145deg, rgba(79,70,229,.3), rgba(8,145,178,.1)); border-right: 1px solid rgba(148,163,184,.18); }
+      .brand { display: inline-flex; align-items: center; gap: 10px; font-family: Orbitron, sans-serif; font-size: 20px; letter-spacing: .06em; color: #fcd34d; }
+      .brand img { width: 36px; height: 36px; object-fit: contain; }
+      .eyebrow { margin: 72px 0 12px; color: #a5b4fc; font-size: 12px; font-weight: 700; letter-spacing: .15em; }
+      h1 { max-width: 440px; margin: 0; font-size: clamp(36px, 5vw, 56px); line-height: 1.03; letter-spacing: -.055em; }
+      .intro-copy { max-width: 410px; margin: 20px 0 0; color: #cbd5e1; font-size: 17px; line-height: 1.6; }
+      .benefits { display: grid; gap: 12px; margin: 38px 0 0; padding: 0; list-style: none; color: #e2e8f0; }
+      .benefits li::before { content: "✓"; display: inline-grid; place-items: center; width: 22px; height: 22px; margin-right: 10px; border-radius: 50%; color: #67e8f9; background: rgba(6,182,212,.14); font-size: 13px; }
+      .login-card { display: flex; flex-direction: column; justify-content: center; padding: clamp(30px, 5vw, 58px); }
+      .login-card .logo { display: grid; place-items: center; width: 62px; height: 62px; margin-bottom: 25px; border: 1px solid rgba(34,211,238,.45); border-radius: 18px; background: rgba(8,145,178,.1); box-shadow: 0 0 28px rgba(6,182,212,.2); }
+      .logo img { width: 48px; height: 48px; object-fit: contain; }
+      h2 { margin: 0; font-size: 28px; letter-spacing: -.035em; }
+      .login-card p { margin: 10px 0 26px; color: #94a3b8; line-height: 1.5; }
+      #loginBtn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 52px; border: 0; border-radius: 12px; background: #fff; color: #172033; font: inherit; font-weight: 700; cursor: pointer; transition: transform .18s ease, box-shadow .18s ease, opacity .18s ease; }
+      #loginBtn:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(255,255,255,.18); }
+      #loginBtn:disabled { cursor: wait; opacity: .7; transform: none; }
+      .google-mark { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; color: #fff; background: conic-gradient(#4285f4 0 25%, #34a853 0 50%, #fbbc05 0 75%, #ea4335 0); font-size: 12px; font-weight: 800; }
+      #loginStatus { min-height: 22px; margin: 14px 0 0; color: #fca5a5; font-size: 13px; line-height: 1.4; }
+      .privacy-note { margin-top: 38px !important; font-size: 12px; color: #64748b !important; }
+      @media (max-width: 720px) { body { padding: 14px; overflow: auto; } .login-shell { grid-template-columns: 1fr; } .login-intro { padding: 28px; border-right: 0; border-bottom: 1px solid rgba(148,163,184,.18); } .eyebrow { margin-top: 34px; } .benefits { display: none; } .login-card { padding: 32px 28px; } .privacy-note { margin-top: 26px !important; } }
+      @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: .01ms !important; } }
     </style>
   </head>
   <body>
-    <div class="container">
-      <div class="logo">
-        <img src="icons/logo.png" alt="Task Manager Icon" />
-      </div>
-      <h1>
-        <span class="login-text">Login to</span>
-        <span class="karya-text">Karya</span>
-      </h1>
-
-      <button id="loginBtn">Login with Google</button>
-    </div>
-
+    <main class="login-shell">
+      <section class="login-intro" aria-label="About Karya">
+        <div class="brand"><img src="icons/logo.png" alt="" /> Karya</div>
+        <p class="eyebrow">YOUR CALMER WORKSPACE</p>
+        <h1>Plan less.<br />Finish more.</h1>
+        <p class="intro-copy">A focused task manager with projects, reminders, recurring work, and a task-aware AI assistant.</p>
+        <ul class="benefits">
+          <li>Your tasks sync securely to your account</li>
+          <li>Karya AI can help organise your real task list</li>
+          <li>Free local planning support always stays available</li>
+        </ul>
+      </section>
+      <section class="login-card" aria-labelledby="loginTitle">
+        <div class="logo"><img src="icons/logo.png" alt="Karya" /></div>
+        <h2 id="loginTitle">Welcome back</h2>
+        <p>Sign in to reach your tasks and personal Karya AI workspace.</p>
+        <button id="loginBtn" type="button"><span class="google-mark">G</span> Continue with Google</button>
+        <p id="loginStatus" role="status" aria-live="polite"></p>
+        <p class="privacy-note">By continuing, you agree to use Karya responsibly. Advanced AI is always optional.</p>
+      </section>
+    </main>
     <script type="module" src="login.js"></script>
-
-    <!-- Firebase Login Logic -->
-    <script type="module" src="login.js"></script>
-
-    <!-- PWA Service Worker Registration -->
     <script>
-      if ("serviceWorker" in navigator) {
-        navigator.serviceWorker
-          .register("service-worker.js")
-          .then(() => console.log("Service Worker Registered"))
-          .catch((err) => console.error(" SW registration failed:", err));
-      }
+      if ("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js").catch(console.error);
     </script>
   </body>
 </html>

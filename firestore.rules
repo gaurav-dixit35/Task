@@ -1,0 +1,67 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    function isValidTask(task) {
+      return task.keys().hasOnly([
+          'name', 'description', 'estimatedMinutes', 'subtasks',
+          'priority', 'project', 'tags', 'status', 'dueDate',
+          'completed', 'notified', 'warned', 'snoozedUntil', 'recurrence',
+          'createdAt', 'updatedAt'
+        ])
+        && task.name is string && task.name.size() > 0 && task.name.size() <= 240
+        && task.priority in ['low', 'medium', 'high']
+        && task.completed is bool
+        && (!('description' in task) || (task.description is string && task.description.size() <= 2000))
+        && (!('estimatedMinutes' in task) || (task.estimatedMinutes is int && task.estimatedMinutes >= 0 && task.estimatedMinutes <= 1440))
+        && (!('subtasks' in task) || (task.subtasks is list && task.subtasks.size() <= 50))
+        && (!('project' in task) || (task.project is string && task.project.size() <= 40))
+        && (!('tags' in task) || (task.tags is list && task.tags.size() <= 8))
+        && (!('status' in task) || task.status in ['open', 'completed', 'archived'])
+        && (!('recurrence' in task) || task.recurrence in ['none', 'daily', 'weekly'])
+        && (!('dueDate' in task) || task.dueDate == null || task.dueDate is string || task.dueDate is timestamp)
+        && (!('notified' in task) || task.notified is bool)
+        && (!('warned' in task) || task.warned is bool)
+        && (!('snoozedUntil' in task) || task.snoozedUntil == null || task.snoozedUntil is number);
+    }
+
+    match /users/{userId}/tasks/{taskId} {
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isValidTask(request.resource.data);
+      allow delete: if isOwner(userId);
+    }
+
+    match /users/{userId}/feedback/{feedbackId} {
+      allow create: if isOwner(userId)
+        && request.resource.data.keys().hasOnly(['text', 'createdAt'])
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0
+        && request.resource.data.text.size() <= 2000;
+      allow read: if isOwner(userId);
+      allow update, delete: if false;
+    }
+
+    match /ratings/{ratingId} {
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(['rating', 'feedback', 'timestamp', 'uid', 'name', 'email'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.rating is int
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5
+        && request.resource.data.feedback is string
+        && request.resource.data.feedback.size() > 0
+        && request.resource.data.feedback.size() <= 2000
+        && request.resource.data.timestamp is string
+        && request.resource.data.timestamp.size() <= 40
+        && request.resource.data.name is string
+        && request.resource.data.name.size() <= 200
+        && request.resource.data.email is string
+        && request.resource.data.email.size() <= 320;
+      allow read, update, delete: if false;
+    }
+  }
+}

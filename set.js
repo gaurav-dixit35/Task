@@ -9,6 +9,7 @@ import {
   getDocs,
   deleteDoc,
   doc,
+  onSnapshot,
 } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
 
 // DOM Elements
@@ -21,6 +22,13 @@ const exportCSVBtn = document.getElementById("exportCSV");
 const clearExportBtn = document.getElementById("clearExport");
 const themeColorPicker = document.getElementById("themeColorPicker");
 const themeToggle = document.getElementById("themeToggle");
+const offlineCacheToggle = document.getElementById("offlineCacheToggle");
+const clearAiDataBtn = document.getElementById("clearAiData");
+const aiSpeechToggle = document.getElementById("aiSpeechToggle");
+const aiResponseStyle = document.getElementById("aiResponseStyle");
+const advancedAiToggle = document.getElementById("advancedAiToggle");
+const aiUsageStatus = document.getElementById("aiUsageStatus");
+const FREE_AI_DAILY_LIMIT = 12;
 
 const infoToggle = document.getElementById("infoToggle");
 const infoDropdown = document.getElementById("infoDropdown");
@@ -41,13 +49,37 @@ const installSuccess = document.getElementById("installSuccess");
 let user = null;
 let tasks = [];
 let tasksChart = null;
+let unsubscribeTasks = null;
+
+function aiPreferenceKey(name) {
+  return `karya_ai_${name}_${user?.uid || "anon"}`;
+}
+
+function readAiUsage() {
+  try { return JSON.parse(localStorage.getItem(aiPreferenceKey("usage")) || "{}"); }
+  catch { return {}; }
+}
+
+function renderAiSettings() {
+  if (!user) return;
+  if (aiSpeechToggle) aiSpeechToggle.checked = localStorage.getItem(aiPreferenceKey("speech")) !== "off";
+  if (aiResponseStyle) aiResponseStyle.value = localStorage.getItem(aiPreferenceKey("response_style")) || "balanced";
+  if (advancedAiToggle) advancedAiToggle.checked = localStorage.getItem(`karya_gemini_consent_${user.uid}`) === "allowed";
+  const usage = readAiUsage();
+  const today = new Date().toISOString().slice(0, 10);
+  const used = usage.date === today ? Math.min(FREE_AI_DAILY_LIMIT, Number(usage.count || 0)) : 0;
+  if (aiUsageStatus) aiUsageStatus.textContent = `Advanced AI usage today: ${used} of ${FREE_AI_DAILY_LIMIT} free requests in this browser.`;
+}
 
 onAuthStateChanged(auth, async (u) => {
   if (!u) {
+    unsubscribeTasks?.();
+    unsubscribeTasks = null;
     window.location.href = "login.html";
   } else {
     user = u;
-    await fetchTasks();
+    startTaskSync();
+    renderAiSettings();
   }
 });
 
@@ -60,6 +92,17 @@ async function fetchTasks() {
   });
 }
 
+function startTaskSync() {
+  unsubscribeTasks?.();
+  unsubscribeTasks = onSnapshot(
+    collection(db, "users", user.uid, "tasks"),
+    (snap) => {
+      tasks = snap.docs.map((docSnap) => ({ ...docSnap.data(), id: docSnap.id }));
+    },
+    (error) => console.error("Settings task sync failed:", error)
+  );
+}
+
 logoutBtn?.addEventListener("click", async () => {
   await signOut(auth);
   window.location.href = "login.html";
@@ -67,11 +110,15 @@ logoutBtn?.addEventListener("click", async () => {
 
 clearTasksBtn?.addEventListener("click", async () => {
   if (confirm("Are you sure you want to delete ALL your tasks?")) {
-    for (const task of tasks) {
-      await deleteDoc(doc(db, "users", user.uid, "tasks", task.id));
+    try {
+      for (const task of tasks) {
+        await deleteDoc(doc(db, "users", user.uid, "tasks", task.id));
+      }
+      alert("All tasks deleted.");
+    } catch (error) {
+      console.error("Clear tasks failed:", error);
+      alert("Some tasks could not be deleted. Please try again.");
     }
-    alert("All tasks deleted.");
-    await fetchTasks();
   }
 });
 
@@ -140,14 +187,22 @@ exportJSONBtn?.addEventListener("click", () => {
 });
 
 exportCSVBtn?.addEventListener("click", () => {
-  const headers = ["Name", "Priority", "Due Date", "Completed"];
+  const headers = ["Name", "Project", "Tags", "Priority", "Due Date", "Repeats", "Estimate (minutes)", "Completed", "Notes", "Subtasks"];
   const rows = tasks.map((t) => [
     t.name,
+    t.project || "Inbox",
+    (t.tags || []).join(", "),
     t.priority,
     t.dueDate || "N/A",
+    t.recurrence || "none",
+    Number(t.estimatedMinutes || 0),
     t.completed ? "Yes" : "No",
+    t.description || "",
+    (t.subtasks || []).map((subtask) => `${subtask.completed ? "✓" : "○"} ${subtask.title}`).join(" | "),
   ]);
-  const csv = [headers, ...rows].map((e) => e.join(",")).join("\n");
+  const csv = [headers, ...rows]
+    .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+    .join("\n");
   const blob = new Blob([csv], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
   downloadFile(url, "tasks.csv");
@@ -205,6 +260,45 @@ document.getElementById("previewSound")?.addEventListener("click", () => {
 document.getElementById("soundSelect")?.addEventListener("change", () => {
   const selected = document.getElementById("soundSelect").value;
   localStorage.setItem("notificationSound", selected);
+});
+
+if (offlineCacheToggle) {
+  offlineCacheToggle.checked = localStorage.getItem("karya_offline_cache") === "enabled";
+  offlineCacheToggle.addEventListener("change", () => {
+    localStorage.setItem(
+      "karya_offline_cache",
+      offlineCacheToggle.checked ? "enabled" : "disabled"
+    );
+    alert("Offline cache preference saved. Reload Karya to apply it.");
+  });
+}
+
+clearAiDataBtn?.addEventListener("click", () => {
+  if (!confirm("Clear Karya AI data stored on this browser? Your tasks will not be deleted.")) return;
+  Object.keys(localStorage)
+    .filter((key) => key.startsWith("karya_ai_") || key.startsWith("karya_gemini_"))
+    .forEach((key) => localStorage.removeItem(key));
+  alert("Karya AI browser data cleared.");
+  renderAiSettings();
+});
+
+aiSpeechToggle?.addEventListener("change", () => {
+  localStorage.setItem(aiPreferenceKey("speech"), aiSpeechToggle.checked ? "on" : "off");
+});
+
+aiResponseStyle?.addEventListener("change", () => {
+  localStorage.setItem(aiPreferenceKey("response_style"), aiResponseStyle.value);
+});
+
+advancedAiToggle?.addEventListener("change", () => {
+  if (!user) return;
+  const consentKey = `karya_gemini_consent_${user.uid}`;
+  if (advancedAiToggle.checked) {
+    localStorage.setItem(consentKey, "allowed");
+  } else {
+    localStorage.removeItem(consentKey);
+  }
+  renderAiSettings();
 });
 
 infoToggle?.addEventListener("click", () => {

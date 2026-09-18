@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Task List App</title>
+    <title>Karya — Smart Task Manager</title>
 
     <link
       rel="stylesheet"
@@ -13,11 +13,6 @@
       href="https://fonts.googleapis.com/css2?family=Orbitron:wght@800&display=swap"
       rel="stylesheet"
     />
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
-    />
-
     <link rel="manifest" href="manifest.json" />
     <meta name="theme-color" content="#4f46e5" />
 
@@ -32,7 +27,7 @@
   <body>
     <header class="main-header">
       <div class="profile-wrapper">
-        <div id="profile" class="profile-circle">K</div>
+        <button id="profile" class="profile-circle" type="button" aria-label="Open account menu" aria-expanded="false">K</button>
         <div class="dropdown" id="profileDropdown">
           <ul>
             <li>
@@ -42,7 +37,7 @@
                 >Settings</a
               >
             </li>
-            <li id="rateUsBtn">Rate Us</li>
+            <li id="rateUsBtn" role="button" tabindex="0">Rate Us</li>
           </ul>
         </div>
       </div>
@@ -61,30 +56,78 @@
     </header>
 
     <div class="container">
-      <h1>Task List</h1>
+      <div class="page-heading">
+        <div>
+          <p class="eyebrow">YOUR WORKSPACE</p>
+          <h1>My tasks</h1>
+          <p class="heading-copy">Capture what matters, then finish it with clarity.</p>
+        </div>
+      </div>
 
-      <input type="text" id="searchInput" placeholder="Search tasks..." />
+      <section class="task-overview" aria-label="Task overview" aria-live="polite">
+        <article class="overview-card">
+          <span>Open</span>
+          <strong id="openTaskCount">0</strong>
+        </article>
+        <article class="overview-card">
+          <span>Due today</span>
+          <strong id="todayTaskCount">0</strong>
+        </article>
+        <article class="overview-card">
+          <span>Completed</span>
+          <strong id="completedTaskCount">0</strong>
+        </article>
+      </section>
+
+      <input type="text" id="searchInput" placeholder="Search tasks, projects, or #tags" aria-label="Search tasks" />
 
       <form id="taskForm">
-        <input
-          type="text"
-          id="taskInput"
-          placeholder="Enter a new task"
-          required
-        />
-        <button type="button" id="voiceBtn" title="Speak Task">
-          <i class="fas fa-microphone"></i>
-        </button>
-        <input type="datetime-local" id="dueInput" required />
-        <select id="prioritySelect">
-          <option value="low">🟢 Low</option>
-          <option value="medium">🟡 Medium</option>
-          <option value="high">🔴 High</option>
-        </select>
-        <button type="submit">Add Task</button>
+        <div class="task-primary-row">
+          <input
+            type="text"
+            id="taskInput"
+            placeholder="What needs to be done?"
+            aria-label="New task title"
+            required
+          />
+          <button type="button" id="voiceBtn" title="Speak Task" aria-label="Speak task">
+            <i class="fas fa-microphone"></i>
+          </button>
+          <button type="submit">Add task</button>
+        </div>
+        <details class="task-options">
+          <summary>More options <span>Project, deadline, priority, repeat</span></summary>
+          <div class="task-options-grid">
+            <input type="text" id="projectInput" placeholder="Project (optional)" aria-label="Project" maxlength="40" />
+            <input type="text" id="tagsInput" placeholder="Tags, separated by commas" aria-label="Tags" maxlength="100" />
+            <input type="datetime-local" id="dueInput" aria-label="Due date and time" />
+            <select id="prioritySelect" aria-label="Priority">
+              <option value="low">🟢 Low priority</option>
+              <option value="medium">🟡 Medium priority</option>
+              <option value="high">🔴 High priority</option>
+            </select>
+            <select id="repeatSelect" aria-label="Repeat task">
+              <option value="none">Does not repeat</option>
+              <option value="daily">Repeat daily</option>
+              <option value="weekly">Repeat weekly</option>
+            </select>
+          </div>
+        </details>
       </form>
 
       <div class="sort-section">
+        <label for="taskViewSelect">View:</label>
+        <select id="taskViewSelect">
+          <option value="all">All tasks</option>
+          <option value="open">Open</option>
+          <option value="today">Today</option>
+          <option value="overdue">Overdue</option>
+          <option value="completed">Completed</option>
+        </select>
+        <label for="projectFilter">Project:</label>
+        <select id="projectFilter">
+          <option value="all">All projects</option>
+        </select>
         <label for="sortSelect">Sort by:</label>
         <select id="sortSelect">
           <option value="default">Default</option>
@@ -95,15 +138,40 @@
       </div>
 
       <ul id="taskList"></ul>
+
+      <dialog id="taskDetailsDialog" class="task-details-dialog">
+        <form id="taskDetailsForm">
+          <div class="task-details-header">
+            <h2 id="taskDetailsTitle">Task details</h2>
+            <button type="button" id="closeTaskDetails" class="icon-button" aria-label="Close task details">×</button>
+          </div>
+          <label for="taskDescriptionInput">Notes</label>
+          <textarea id="taskDescriptionInput" maxlength="2000" placeholder="Add notes, links, or context..."></textarea>
+          <label for="taskEstimateInput">Estimated focus time (minutes)</label>
+          <input type="number" id="taskEstimateInput" min="0" max="1440" step="5" placeholder="For example: 30" />
+          <label for="taskRecurrenceSelect">Repeat</label>
+          <select id="taskRecurrenceSelect">
+            <option value="none">Does not repeat</option>
+            <option value="daily">Every day</option>
+            <option value="weekly">Every week</option>
+          </select>
+          <section class="subtasks-section">
+            <h3>Subtasks</h3>
+            <ul id="subtaskList" class="subtask-list"></ul>
+            <div class="subtask-add-row">
+              <input type="text" id="subtaskInput" maxlength="240" placeholder="Add a subtask" />
+              <button type="button" id="addSubtaskBtn">Add</button>
+            </div>
+          </section>
+          <div class="task-details-actions">
+            <button type="button" id="cancelTaskDetails">Cancel</button>
+            <button type="submit">Save details</button>
+          </div>
+        </form>
+      </dialog>
     </div>
 
     <div id="snackbar">Task deleted. <button id="undoBtn">Undo</button></div>
-
-    <audio
-      id="reminderSound"
-      src="https://notificationsounds.com/storage/sounds/file-sounds-1150-pristine.mp3"
-      preload="auto"
-    ></audio>
 
     <div class="rate-us-container" id="rateUsContainer" style="display: none">
       <div class="rate-box">
@@ -132,7 +200,7 @@
       <p>© 2025 Karya. All rights reserved by Gaurav Dixit.</p>
     </footer>
 
-    <link rel="stylesheet" href="karyaai/ai.css" />
+    <link rel="stylesheet" href="Karyaai/ai.css" />
 
     <button id="karyaAiBtn" class="karya-ai-btn" aria-label="Open Karya AI">
       <img src="icons/karyaai.png" alt="AI" />
@@ -155,11 +223,12 @@
           <button id="startNewChat" class="karya-mini-btn" title="New Chat">
             +
           </button>
-          <button id="toggleSpeechBtn" title="Toggle AI Voice">🔊</button>
+          <button id="toggleSpeechBtn" class="karya-mini-btn" title="Toggle AI Voice" aria-label="Toggle AI voice">🔊</button>
 
           <button id="openHistory" class="karya-mini-btn" title="History">
             H
           </button>
+          <a href="settings.html#ai-settings" class="karya-mini-btn ai-settings-link" title="Karya AI settings" aria-label="Karya AI settings">⚙</a>
           <button id="closeAi" class="karya-close-btn" title="Close">✕</button>
         </div>
       </div>
@@ -169,22 +238,16 @@
 
         <div id="karyaActions" class="karya-actions">
           <button class="action-btn active" data-action="chat">Chat</button>
-          <button class="action-btn" data-action="smart-add">
-            Smart Add Task
-          </button>
-          <button class="action-btn" data-action="analyse">
-            Analyse My Tasks
-          </button>
-          <button class="action-btn" data-action="reminders">
-            Manage Reminders
-          </button>
+          <button class="action-btn" data-action="smart-add">Add task</button>
+          <button class="action-btn" data-action="analyse">Analyse</button>
+          <button class="action-btn" data-action="reminders">Reminders</button>
         </div>
       </div>
 
       <div class="karya-panel-footer">
         <input
           id="karyaInput"
-          placeholder="Ask something..."
+          placeholder="Ask Karya AI…"
           autocomplete="off"
         />
 
@@ -198,12 +261,7 @@
       </div>
     </div>
 
-    <script type="module" src="karyaai/ai.js"></script>
+    <script type="module" src="Karyaai/ai.js"></script>
     <script type="module" src="script.js"></script>
-    <script>
-      if ("serviceWorker" in navigator) {
-        navigator.serviceWorker.register("/service-worker.js");
-      }
-    </script>
   </body>
 </html>

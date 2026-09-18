@@ -11,13 +11,29 @@ import {
   updateDoc,
   getDocs,
   query,
+  onSnapshot,
+  serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
 
 // DOM Elements
 const taskForm = document.getElementById("taskForm");
 const taskInput = document.getElementById("taskInput");
+const projectInput = document.getElementById("projectInput");
+const tagsInput = document.getElementById("tagsInput");
 const prioritySelect = document.getElementById("prioritySelect");
+const repeatSelect = document.getElementById("repeatSelect");
 const taskList = document.getElementById("taskList");
+const taskDetailsDialog = document.getElementById("taskDetailsDialog");
+const taskDetailsForm = document.getElementById("taskDetailsForm");
+const taskDetailsTitle = document.getElementById("taskDetailsTitle");
+const taskDescriptionInput = document.getElementById("taskDescriptionInput");
+const taskEstimateInput = document.getElementById("taskEstimateInput");
+const taskRecurrenceSelect = document.getElementById("taskRecurrenceSelect");
+const subtaskList = document.getElementById("subtaskList");
+const subtaskInput = document.getElementById("subtaskInput");
+const addSubtaskBtn = document.getElementById("addSubtaskBtn");
+const closeTaskDetails = document.getElementById("closeTaskDetails");
+const cancelTaskDetails = document.getElementById("cancelTaskDetails");
 const searchInput = document.getElementById("searchInput");
 const voiceBtn = document.getElementById("voiceBtn");
 const snackbar = document.getElementById("snackbar");
@@ -26,9 +42,15 @@ const logoutBtn = document.getElementById("logoutBtn");
 const userInfo = document.getElementById("userInfo");
 const themeToggle = document.getElementById("themeToggle");
 const dueInput = document.getElementById("dueInput");
-const reminderSound = document.getElementById("reminderSound");
 const sortSelect = document.getElementById("sortSelect");
+const taskViewSelect = document.getElementById("taskViewSelect");
+const projectFilter = document.getElementById("projectFilter");
+const openTaskCount = document.getElementById("openTaskCount");
+const todayTaskCount = document.getElementById("todayTaskCount");
+const completedTaskCount = document.getElementById("completedTaskCount");
 sortSelect?.addEventListener("change", renderTasks);
+taskViewSelect?.addEventListener("change", renderTasks);
+projectFilter?.addEventListener("change", renderTasks);
 
 const profile = document.getElementById("profile");
 const profileWrapper = document.querySelector(".profile-wrapper");
@@ -48,10 +70,74 @@ let user = null;
 let tasks = [];
 let lastDeleted = null;
 let selectedRating = 0;
+let unsubscribeTasks = null;
+let detailTaskId = null;
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function normaliseTags(value) {
+  return [...new Set(
+    String(value || "")
+      .split(",")
+      .map((tag) => tag.trim().replace(/^#/, "").toLowerCase())
+      .filter((tag) => tag && tag.length <= 24)
+  )].slice(0, 8);
+}
+
+function createSubtaskId() {
+  return globalThis.crypto?.randomUUID?.() || `subtask-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function formatLocalDateTime(date) {
+  const offset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+}
+
+function nextRecurringDueDate(task) {
+  const next = new Date(task.dueDate);
+  if (Number.isNaN(next.getTime())) return null;
+  const interval = task.recurrence === "weekly" ? 7 : 1;
+  do next.setDate(next.getDate() + interval);
+  while (next <= new Date());
+  return formatLocalDateTime(next);
+}
+
+function recurringTaskFrom(task, dueDate) {
+  return {
+    name: task.name,
+    priority: task.priority || "medium",
+    project: task.project || "Inbox",
+    tags: Array.isArray(task.tags) ? task.tags : [],
+    status: "open",
+    description: task.description || "",
+    estimatedMinutes: Number(task.estimatedMinutes || 0),
+    subtasks: Array.isArray(task.subtasks)
+      ? task.subtasks.map((subtask) => ({ ...subtask, completed: false }))
+      : [],
+    recurrence: task.recurrence,
+    dueDate,
+    completed: false,
+    notified: false,
+    snoozedUntil: null,
+    warned: false,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+}
 
 // Auth
 onAuthStateChanged(auth, async (u) => {
   if (!u) {
+    unsubscribeTasks?.();
+    unsubscribeTasks = null;
+    tasks = [];
     window.location.href = "login.html";
   } else {
     user = u;
@@ -59,7 +145,7 @@ onAuthStateChanged(auth, async (u) => {
     if (profile && user.displayName) {
       profile.textContent = user.displayName.charAt(0).toUpperCase();
     }
-    await loadTasks();
+    startTaskSync();
   }
 });
 
@@ -71,17 +157,21 @@ logoutDropdownBtn?.addEventListener("click", async () => {
 
 // Dropdown
 profile?.addEventListener("click", () => {
-  profileDropdown.style.display =
-    profileDropdown.style.display === "block" ? "none" : "block";
+  const isOpen = profileDropdown.style.display !== "block";
+  profileDropdown.style.display = isOpen ? "block" : "none";
+  profile.setAttribute("aria-expanded", String(isOpen));
 });
 document.addEventListener("click", (e) => {
-  if (!profileWrapper.contains(e.target)) {
+  if (profileWrapper && !profileWrapper.contains(e.target)) {
     profileDropdown.style.display = "none";
+    profile?.setAttribute("aria-expanded", "false");
   }
 });
 
-// Load Tasks
+// Load tasks once and keep the visual list synchronized with Firestore changes
+// made by the form, Karya AI, or another signed-in device.
 async function loadTasks() {
+  if (!user) return;
   tasks = [];
   const q = query(collection(db, "users", user.uid, "tasks"));
   const snap = await getDocs(q);
@@ -91,17 +181,52 @@ async function loadTasks() {
   renderTasks();
 }
 
+function startTaskSync() {
+  unsubscribeTasks?.();
+  const tasksQuery = query(collection(db, "users", user.uid, "tasks"));
+  unsubscribeTasks = onSnapshot(
+    tasksQuery,
+    (snap) => {
+      tasks = snap.docs.map((docSnap) => ({ ...docSnap.data(), id: docSnap.id }));
+      refreshProjectFilter();
+      renderTasks();
+      if (detailTaskId) {
+        if (currentDetailTask()) renderSubtasks();
+        else closeTaskDetailsDialog();
+      }
+    },
+    (error) => console.error("Task sync failed:", error)
+  );
+}
+
+function refreshProjectFilter() {
+  if (!projectFilter) return;
+  const selected = projectFilter.value;
+  const projects = [...new Set(tasks.map((task) => task.project || "Inbox"))].sort((a, b) =>
+    a.localeCompare(b)
+  );
+  projectFilter.innerHTML = '<option value="all">All projects</option>';
+  projects.forEach((project) => {
+    const option = document.createElement("option");
+    option.value = project;
+    option.textContent = project;
+    projectFilter.appendChild(option);
+  });
+  projectFilter.value = projects.includes(selected) ? selected : "all";
+}
+
 // Save Task
 async function saveTaskToFirestore(task) {
   const docRef = await addDoc(collection(db, "users", user.uid, "tasks"), task);
-  task.id = docRef.id;
-  tasks.push(task);
-  renderTasks();
+  return docRef.id;
 }
 
 // Update Task
 async function updateTaskInFirestore(taskId, updatedFields) {
-  await updateDoc(doc(db, "users", user.uid, "tasks", taskId), updatedFields);
+  await updateDoc(doc(db, "users", user.uid, "tasks", taskId), {
+    ...updatedFields,
+    updatedAt: serverTimestamp(),
+  });
 }
 
 // Delete Task
@@ -133,45 +258,114 @@ function getSortedTasks() {
   }
 }
 
+function applyTheme(theme) {
+  const isDark = theme === "dark";
+  document.body.classList.toggle("dark", isDark);
+  document.body.classList.remove("light");
+  if (themeToggle) themeToggle.checked = isDark;
+  localStorage.setItem("theme", isDark ? "dark" : "light");
+}
+
+function renderTaskOverview() {
+  const today = new Date().toDateString();
+  const open = tasks.filter((task) => !task.completed);
+  if (openTaskCount) openTaskCount.textContent = open.length;
+  if (todayTaskCount) {
+    todayTaskCount.textContent = open.filter(
+      (task) => task.dueDate && new Date(task.dueDate).toDateString() === today
+    ).length;
+  }
+  if (completedTaskCount) completedTaskCount.textContent = tasks.length - open.length;
+}
+
 // Render Tasks
 function renderTasks() {
   taskList.innerHTML = "";
-  const searchValue = searchInput.value.toLowerCase();
+  renderTaskOverview();
+  const searchValue = searchInput.value.toLowerCase().replace(/^#/, "");
+  const activeView = taskViewSelect?.value || "all";
+  const activeProject = projectFilter?.value || "all";
+  const now = new Date();
+  const today = now.toDateString();
 
-  getSortedTasks().forEach((task) => {
-    if (!task.name.toLowerCase().includes(searchValue)) return;
+  const visibleTasks = getSortedTasks().filter((task) => {
+    const searchable = [task.name, task.project, ...(task.tags || [])]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    if (!searchable.includes(searchValue)) return false;
+    if (activeProject !== "all" && (task.project || "Inbox") !== activeProject) return false;
+    if (activeView === "open" && task.completed) return false;
+    if (activeView === "completed" && !task.completed) return false;
+    if (activeView === "today" && (!task.dueDate || new Date(task.dueDate).toDateString() !== today)) return false;
+    if (activeView === "overdue" && (task.completed || !task.dueDate || new Date(task.dueDate) >= now)) return false;
+    return true;
+  });
+
+  if (!visibleTasks.length) {
+    taskList.innerHTML = '<li class="empty-state">No tasks match this view.</li>';
+    return;
+  }
+
+  visibleTasks.forEach((task) => {
 
     const li = document.createElement("li");
     li.className = `task-item ${task.completed ? "completed" : ""}`;
+    const subtasks = Array.isArray(task.subtasks) ? task.subtasks : [];
+    const completedSubtasks = subtasks.filter((subtask) => subtask.completed).length;
     li.innerHTML = `
-      <span>${task.name}</span>
-      ${
-        task.dueDate
-          ? `<small>🕒 Due: ${new Date(task.dueDate).toLocaleString()}</small>`
-          : ""
-      }
-      <span class="task-priority priority-${task.priority}">(${
-      task.priority
-    })</span>
-      <div class="buttons">
-        <button class="done-btn">✔</button>
-        <button class="delete-btn">✖</button>
+      <div class="task-content">
+        <div class="task-title-row">
+          <span class="task-title">${escapeHtml(task.name)}</span>
+          <span class="task-priority priority-${escapeHtml(task.priority)}">${escapeHtml(task.priority)}</span>
+        </div>
+        <div class="task-meta">
+          ${task.dueDate ? `<small>🕒 ${escapeHtml(new Date(task.dueDate).toLocaleString())}</small>` : '<small class="no-due-date">No deadline</small>'}
+          <small class="task-project">📁 ${escapeHtml(task.project || "Inbox")}</small>
+          ${(task.tags || []).map((tag) => `<small class="task-tag">#${escapeHtml(tag)}</small>`).join("")}
+          ${task.recurrence && task.recurrence !== "none" ? `<small class="task-repeat">↻ ${escapeHtml(task.recurrence)}</small>` : ""}
+          ${subtasks.length ? `<small class="task-subtasks">☑ ${completedSubtasks}/${subtasks.length} subtasks</small>` : ""}
+        </div>
+      </div>
+      <div class="buttons" aria-label="Task actions">
+        <button class="done-btn" aria-label="${task.completed ? "Reopen" : "Complete"} ${escapeHtml(task.name)}">${task.completed ? "↺" : "✓"}</button>
+        <button class="details-btn" aria-label="Open details for ${escapeHtml(task.name)}">⋯</button>
+        <button class="delete-btn" aria-label="Delete ${escapeHtml(task.name)}">✕</button>
       </div>
     `;
 
-    li.querySelector(".done-btn").onclick = async () => {
-      task.completed = !task.completed;
-      await updateTaskInFirestore(task.id, { completed: task.completed });
-      renderTasks();
+    li.querySelector(".done-btn").onclick = async (event) => {
+      const doneButton = event.currentTarget;
+      doneButton.disabled = true;
+      try {
+        await updateTaskInFirestore(task.id, {
+          completed: !task.completed,
+          status: task.completed ? "open" : "completed",
+        });
+        if (!task.completed && task.recurrence && task.recurrence !== "none") {
+          const nextDueDate = nextRecurringDueDate(task);
+          if (nextDueDate) await saveTaskToFirestore(recurringTaskFrom(task, nextDueDate));
+        }
+      } catch (error) {
+        console.error("Task update failed:", error);
+        alert("Couldn't update this task. Please try again.");
+      } finally {
+        doneButton.disabled = false;
+      }
     };
 
     li.querySelector(".delete-btn").onclick = async () => {
-      lastDeleted = { ...task };
-      tasks = tasks.filter((t) => t.id !== task.id);
-      await deleteTaskFromFirestore(task.id);
-      renderTasks();
-      showUndoSnackbar();
+      try {
+        lastDeleted = { ...task };
+        await deleteTaskFromFirestore(task.id);
+        showUndoSnackbar();
+      } catch (error) {
+        console.error("Task deletion failed:", error);
+        alert("Couldn't delete this task. Please try again.");
+      }
     };
+
+    li.querySelector(".details-btn").onclick = () => openTaskDetails(task);
 
     taskList.appendChild(li);
   });
@@ -184,33 +378,194 @@ taskForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
   const taskName = taskInput.value.trim();
   const priority = prioritySelect.value;
+  const recurrence = repeatSelect?.value || "none";
   const dueDate = dueInput.value;
+  const project = projectInput?.value.trim().slice(0, 40) || "Inbox";
+  const tags = normaliseTags(tagsInput?.value);
 
   if (taskName !== "") {
+    if (recurrence !== "none" && !dueDate) {
+      alert("Choose a due date for a repeating task.");
+      return;
+    }
+    if (dueDate && "Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {});
+    }
     const newTask = {
       name: taskName,
       priority,
-      dueDate,
+      project,
+      tags,
+      status: "open",
+      description: "",
+      estimatedMinutes: 0,
+      subtasks: [],
+      recurrence,
+      dueDate: dueDate || null,
       completed: false,
       notified: false,
       snoozedUntil: null, // 🆕 Phase 5
       warned: false, // 🆕 Phase 5 (early reminder)
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
     };
 
-    await saveTaskToFirestore(newTask);
-    taskInput.value = "";
-    dueInput.value = "";
-    prioritySelect.value = "low";
-    noNotify.checked = false;
+    try {
+      await saveTaskToFirestore(newTask);
+      taskInput.value = "";
+      dueInput.value = "";
+      if (projectInput) projectInput.value = "";
+      if (tagsInput) tagsInput.value = "";
+      prioritySelect.value = "low";
+      if (repeatSelect) repeatSelect.value = "none";
+    } catch (error) {
+      console.error("Task creation failed:", error);
+      alert("Couldn't add this task. Check your connection and try again.");
+    }
   }
+});
+
+function currentDetailTask() {
+  return tasks.find((task) => task.id === detailTaskId) || null;
+}
+
+function renderSubtasks() {
+  if (!subtaskList) return;
+  const task = currentDetailTask();
+  const subtasks = task?.subtasks || [];
+  subtaskList.innerHTML = "";
+  if (!subtasks.length) {
+    subtaskList.innerHTML = '<li class="empty-subtasks">No subtasks yet.</li>';
+    return;
+  }
+  subtasks.forEach((subtask) => {
+    const item = document.createElement("li");
+    item.className = "subtask-item";
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = Boolean(subtask.completed);
+    checkbox.setAttribute("aria-label", `Complete ${subtask.title}`);
+    checkbox.addEventListener("change", async () => {
+      const nextSubtasks = subtasks.map((itemToUpdate) =>
+        itemToUpdate.id === subtask.id
+          ? { ...itemToUpdate, completed: checkbox.checked }
+          : itemToUpdate
+      );
+      try {
+        await updateTaskInFirestore(task.id, { subtasks: nextSubtasks });
+      } catch (error) {
+        console.error("Subtask update failed:", error);
+        checkbox.checked = !checkbox.checked;
+        alert("Couldn't update this subtask. Please try again.");
+      }
+    });
+    const label = document.createElement("span");
+    label.textContent = subtask.title;
+    label.classList.toggle("completed", Boolean(subtask.completed));
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.className = "remove-subtask-btn";
+    removeButton.textContent = "×";
+    removeButton.setAttribute("aria-label", `Remove ${subtask.title}`);
+    removeButton.addEventListener("click", async () => {
+      try {
+        await updateTaskInFirestore(task.id, {
+          subtasks: subtasks.filter((itemToRemove) => itemToRemove.id !== subtask.id),
+        });
+      } catch (error) {
+        console.error("Subtask removal failed:", error);
+        alert("Couldn't remove this subtask. Please try again.");
+      }
+    });
+    item.append(checkbox, label, removeButton);
+    subtaskList.appendChild(item);
+  });
+}
+
+function openTaskDetails(task) {
+  if (!taskDetailsDialog) return;
+  detailTaskId = task.id;
+  taskDetailsTitle.textContent = task.name;
+  taskDescriptionInput.value = task.description || "";
+  taskEstimateInput.value = Number(task.estimatedMinutes || 0) || "";
+  taskRecurrenceSelect.value = ["daily", "weekly"].includes(task.recurrence) ? task.recurrence : "none";
+  subtaskInput.value = "";
+  renderSubtasks();
+  if (!taskDetailsDialog.open) taskDetailsDialog.showModal();
+}
+
+function closeTaskDetailsDialog() {
+  detailTaskId = null;
+  if (taskDetailsDialog?.open) taskDetailsDialog.close();
+}
+
+taskDetailsForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const task = currentDetailTask();
+  if (!task) return closeTaskDetailsDialog();
+  const estimatedMinutes = Number(taskEstimateInput.value || 0);
+  const recurrence = taskRecurrenceSelect.value;
+  if (!Number.isInteger(estimatedMinutes) || estimatedMinutes < 0 || estimatedMinutes > 1440) {
+    return alert("Enter an estimate between 0 and 1440 minutes.");
+  }
+  if (recurrence !== "none" && !task.dueDate) {
+    return alert("Set a due date before making this task repeat.");
+  }
+  try {
+    await updateTaskInFirestore(task.id, {
+      description: taskDescriptionInput.value.trim(),
+      estimatedMinutes,
+      recurrence,
+    });
+    closeTaskDetailsDialog();
+  } catch (error) {
+    console.error("Task detail save failed:", error);
+    alert("Couldn't save task details. Please try again.");
+  }
+});
+
+addSubtaskBtn?.addEventListener("click", async () => {
+  const task = currentDetailTask();
+  const title = subtaskInput.value.trim();
+  if (!task || !title) return;
+  const subtasks = task.subtasks || [];
+  if (subtasks.length >= 50) return alert("A task can have up to 50 subtasks.");
+  try {
+    await updateTaskInFirestore(task.id, {
+      subtasks: [...subtasks, { id: createSubtaskId(), title: title.slice(0, 240), completed: false }],
+    });
+    subtaskInput.value = "";
+  } catch (error) {
+    console.error("Subtask creation failed:", error);
+    alert("Couldn't add this subtask. Please try again.");
+  }
+});
+
+subtaskInput?.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    addSubtaskBtn?.click();
+  }
+});
+
+closeTaskDetails?.addEventListener("click", closeTaskDetailsDialog);
+cancelTaskDetails?.addEventListener("click", closeTaskDetailsDialog);
+taskDetailsDialog?.addEventListener("close", () => {
+  detailTaskId = null;
 });
 
 // Undo Delete
 undoBtn?.addEventListener("click", async () => {
   if (lastDeleted && user) {
-    await saveTaskToFirestore({ ...lastDeleted });
-    snackbar?.classList.remove("show");
-    lastDeleted = null;
+    try {
+      const { id, ...taskToRestore } = lastDeleted;
+      await saveTaskToFirestore(taskToRestore);
+      snackbar?.classList.remove("show");
+      lastDeleted = null;
+    } catch (error) {
+      console.error("Task restore failed:", error);
+      alert("Couldn't restore this task. Please try again.");
+    }
   }
 });
 
@@ -238,20 +593,11 @@ voiceBtn?.addEventListener("click", () => {
 
 // Theme Toggle
 themeToggle?.addEventListener("change", () => {
-  document.body.classList.toggle("light");
-
-  document.body.classList.toggle("dark");
-  localStorage.setItem(
-    "theme",
-    document.body.classList.contains("dark") ? "dark" : "light"
-  );
+  applyTheme(themeToggle.checked ? "dark" : "light");
 });
 
 window.addEventListener("load", () => {
-  if (localStorage.getItem("theme") === "dark") {
-    document.body.classList.add("dark");
-    if (themeToggle) themeToggle.checked = true;
-  }
+  applyTheme(localStorage.getItem("theme") === "dark" ? "dark" : "light");
 });
 
 // Rating System
@@ -311,6 +657,14 @@ function closeRateBox() {
 
 rateUsBtn?.addEventListener("click", () => {
   rateContainer.style.display = "flex";
+  profileDropdown.style.display = "none";
+  profile?.setAttribute("aria-expanded", "false");
+});
+rateUsBtn?.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    rateUsBtn.click();
+  }
 });
 closeRateUs?.addEventListener("click", closeRateBox);
 
@@ -330,7 +684,6 @@ function checkDueReminders() {
   if (!("Notification" in window)) return;
 
   if (Notification.permission !== "granted") {
-    Notification.requestPermission();
     return;
   }
 
@@ -412,98 +765,6 @@ window.loadTasksFromFirestore = async function () {
   await loadTasks();
 };
 
-// Called from ai.js: text like "Change Buy groceries to high priority tomorrow 6 pm"
-window.editTaskFromAI = async function (text) {
-  if (!user || !tasks.length) return;
-
-  // Try to find task by name substring
-  const lower = text.toLowerCase();
-  const match = tasks.find((t) =>
-    t.name.toLowerCase().includes(extractTaskNameForAI(text).toLowerCase())
-  );
-
-  if (!match) {
-    alert("Karya AI: I couldn't find that task.");
-    return;
-  }
-
-  const updates = {};
-
-  // Priority
-  if (/high priority|priority high|make it high/i.test(lower))
-    updates.priority = "high";
-  else if (/medium priority|priority medium/i.test(lower))
-    updates.priority = "medium";
-  else if (/low priority|priority low|make it low/i.test(lower))
-    updates.priority = "low";
-
-  // Due date/time – very simple: if it says "tomorrow"
-  if (/tomorrow/i.test(lower)) {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    updates.dueDate = d.toISOString();
-  }
-
-  if (Object.keys(updates).length === 0) {
-    alert("Karya AI: I understood the task, but not what to change.");
-    return;
-  }
-
-  await updateTaskInFirestore(match.id, updates);
-
-  // Update local array
-  Object.assign(match, updates);
-  renderTasks();
-};
-
-// Helper to guess task name from AI text
-function extractTaskNameForAI(text) {
-  // very basic: after "change" or "edit"
-  const m = text.match(/(change|edit|update)\s+(.+?)(\sto|\sfor|$)/i);
-  return m ? m[2].trim() : text;
-}
-
-// Called from ai.js: text like "Delete Buy groceries"
-window.deleteTaskFromAI = async function (text) {
-  if (!user || !tasks.length) return;
-
-  const lower = text.toLowerCase();
-
-  // If user says "delete first task" etc, you could handle that here too.
-  const match = tasks.find((t) => lower.includes(t.name.toLowerCase()));
-
-  if (!match) {
-    alert("Karya AI: I couldn't find that task to delete.");
-    return;
-  }
-
-  lastDeleted = { ...match };
-  tasks = tasks.filter((t) => t.id !== match.id);
-  await deleteTaskFromFirestore(match.id);
-  renderTasks();
-  showUndoSnackbar();
-};
-
-// Called from ai.js: text like "by priority" or "only completed"
-window.sortFilterTasksFromAI = function (text) {
-  const lower = text.toLowerCase();
-
-  if (sortSelect) {
-    if (lower.includes("priority")) sortSelect.value = "priority";
-    else if (lower.includes("due")) sortSelect.value = "due";
-    else if (lower.includes("completed") || lower.includes("done"))
-      sortSelect.value = "completed";
-    else sortSelect.value = "default";
-  }
-
-  // Simple filter example: "only today"
-  if (searchInput && /only today/i.test(lower)) {
-    // You might instead add a dedicated filter; here we just clear search.
-    searchInput.value = "";
-  }
-
-  renderTasks();
-};
 // Apply saved primary color on home
 window.addEventListener("load", () => {
   const color = localStorage.getItem("customColor");

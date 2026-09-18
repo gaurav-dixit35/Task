@@ -1,1822 +1,434 @@
-import { onlineBrain } from "./online-brain.js";
 import { auth, db } from "../firebase.js";
+import { onlineBrain } from "./online-brain.js";
 import { karyaBrain } from "./ai-brain.js";
-import {
-  collection,
-  addDoc,
-  getDocs,
-} from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
-
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js";
+import { addDoc, collection, deleteDoc, doc, getDocs, updateDoc } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
 
-let morningDone =
-  JSON.parse(localStorage.getItem("karya_morning_done")) || false;
-
-let aiContext = {
-  goal: null,
-  mood: "neutral",
-  lastIntent: null,
-  focusMode: JSON.parse(localStorage.getItem("karya_focus_mode")) || false,
-  lastTaskMentioned: null,
-  awaitingClarification: null,
+// Karya AI is task-first: it reads and changes the signed-in user's Firestore
+// tasks. It does not use an exposed browser API key or claim to be trained.
+const HISTORY_KEY = "karya_ai_history_v4";
+const MEMORY_KEY = "karya_ai_memory_v2";
+const el = {
+  button: document.getElementById("karyaAiBtn"), panel: document.getElementById("karyaAiPanel"),
+  close: document.getElementById("closeAi"), messages: document.getElementById("karyaMessages"),
+  input: document.getElementById("karyaInput"), send: document.getElementById("sendBtn"),
+  voice: document.getElementById("aiVoiceBtn"), speech: document.getElementById("toggleSpeechBtn"),
+  newChat: document.getElementById("startNewChat"), history: document.getElementById("openHistory"),
+  actionButtons: document.querySelectorAll(".action-btn"),
 };
-aiContext.lastDecision = null;
-const aiPersona = {
-  tone: "neutral",
-  productivityLevel: "normal",
-  focusMode: false,
-  lastInteraction: Date.now(),
-};
+let user = null, currentAction = "chat", processing = false, speechEnabled = true, recognition = null, listening = false, history = [];
+let state = { pendingConfirmation: null, pendingGeminiQuestion: null, lastTask: null, focusMode: false };
+const FREE_AI_DAILY_LIMIT = 12;
 
-function recordDecision({ action, reason, confidence = 0.7, data = null }) {
-  aiContext.lastDecision = {
-    action,
-    reason,
-    confidence,
-    data,
-    time: new Date().toISOString(),
-  };
+function memoryKey() { return `${MEMORY_KEY}_${user?.uid || "anon"}`; }
+function aiPreferenceKey(name) { return `karya_ai_${name}_${user?.uid || "anon"}`; }
+function readJSON(key, fallback) {
+  try { return JSON.parse(localStorage.getItem(key) || ""); }
+  catch { return fallback; }
 }
-
-let aiMemory = JSON.parse(localStorage.getItem("karya_ai_memory")) || {
-  name: null,
-  preferredTone: "normal",
-  prefersVoice: true,
-  preferredAction: "chat",
-  activeTime: null,
-};
-
-let aiCorrections = JSON.parse(
-  localStorage.getItem("karya_ai_corrections")
-) || {
-  priorityFixes: {},
-  timeFixes: {},
-  intentFixes: {},
-};
-
-function saveAiCorrections() {
-  localStorage.setItem("karya_ai_corrections", JSON.stringify(aiCorrections));
+function loadState() {
+  state = { ...state, ...readJSON(memoryKey(), {}), pendingConfirmation: null };
+  history = readJSON(`${HISTORY_KEY}_${user?.uid || "anon"}`, []);
+  speechEnabled = localStorage.getItem(aiPreferenceKey("speech")) !== "off";
+  if (el.speech) el.speech.textContent = speechEnabled ? "🔊" : "🔇";
 }
-
-const aiBtn = document.getElementById("karyaAiBtn");
-
-aiBtn.addEventListener("click", () => {
-  aiBtn.classList.remove("active");
-  void aiBtn.offsetWidth; // force reflow
-  aiBtn.classList.add("active");
-});
-
-const KARYA_KNOWLEDGE = {
-  karya: `
-Karya is a smart task management system designed to help users plan, track, and complete tasks efficiently.
-
-It includes:
-• Task management
-• Priority handling
-• Reminders
-• Analytics
-• Focus mode
-• Offline support
-• Progressive Web App installation
-• Built-in AI assistant (Karya AI)
-
-Karya works fully on web and can be installed like a mobile app.
-`,
-
-  karya_ai: `
-Karya AI is the intelligent assistant inside the Karya app.
-
-It helps users:
-• Add tasks using natural language
-• Understand priorities
-• Analyze productivity
-• Stay focused
-• Receive proactive suggestions
-• Use voice input and voice output
-• Work offline with auto-sync
-
-Karya AI learns user preferences over time.
-`,
-
-  settings: `
-Settings allow you to customize how Karya works.
-
-From Settings you can:
-• Toggle focus mode
-• Control AI voice
-• Manage theme
-• Clear or export data
-• View app information
-• Adjust preferences
-
-Settings affect the entire Karya experience.
-`,
-
-  focus_mode: `
-Focus Mode reduces distractions.
-
-When enabled:
-• AI responses become minimal
-• Proactive messages stop
-• Voice output is muted
-• Only essential task actions are allowed
-
-This helps during deep work sessions.
-`,
-
-  analyze: `
-Analyze shows your productivity insights.
-
-It includes:
-• Total tasks
-• Completed vs pending tasks
-• Priority distribution
-• Coaching suggestions
-
-It helps you understand how you are working.
-`,
-
-  reminders: `
-Reminders notify you about upcoming or overdue tasks.
-
-They are triggered based on:
-• Due date
-• Priority
-• Idle time
-
-Reminders work online and sync when offline.
-`,
-
-  rating: `
-Rating lets users give feedback about the app.
-
-This helps improve Karya by understanding user experience.
-`,
-
-  install: `
-Karya can be installed as an app.
-
-On desktop:
-• Click the install icon in the browser address bar
-
-On mobile:
-• Use "Add to Home Screen" from browser menu
-
-Once installed, Karya works like a native app.
-`,
-
-  offline: `
-Karya supports offline usage.
-
-When offline:
-• Tasks are saved locally
-• AI continues basic operation
-• Data syncs automatically when internet returns
-`,
-};
-function matchKnowledgeQuestion(text) {
-  const t = text.toLowerCase();
-
-  // Whole project
-  if (/what is karya\??$|explain karya\??$|about karya\??$/i.test(t)) {
-    return KARYA_KNOWLEDGE.karya;
-  }
-
-  // AI only
-  if (/karya ai|what is ai|explain ai|about ai/i.test(t)) {
-    return KARYA_KNOWLEDGE.karya_ai;
-  }
-
-  // Settings
-  if (/settings?|what is settings|explain settings/i.test(t)) {
-    return KARYA_KNOWLEDGE.settings;
-  }
-
-  // Focus Mode
-  if (/focus mode|deep work/i.test(t)) {
-    return KARYA_KNOWLEDGE.focus_mode;
-  }
-
-  // Analyze
-  if (/analyze|analysis|stats|progress/i.test(t)) {
-    return KARYA_KNOWLEDGE.analyze;
-  }
-
-  // Reminders
-  if (/reminder|notification/i.test(t)) {
-    return KARYA_KNOWLEDGE.reminders;
-  }
-
-  // Rating
-  if (/rating|feedback/i.test(t)) {
-    return KARYA_KNOWLEDGE.rating;
-  }
-
-  // Install
-  if (/install|add to home|pwa/i.test(t)) {
-    return KARYA_KNOWLEDGE.install;
-  }
-
-  // Offline
-  if (/offline|no internet/i.test(t)) {
-    return KARYA_KNOWLEDGE.offline;
-  }
-
-  return null;
+function saveState() {
+  const { pendingConfirmation, pendingGeminiQuestion, ...persisted } = state;
+  localStorage.setItem(memoryKey(), JSON.stringify(persisted));
 }
-function detectCorrection(text) {
-  const t = text.toLowerCase();
-
-  if (/no|wrong|not that|i meant|change it|instead/i.test(t)) {
-    return true;
-  }
-
-  return false;
+function aiUsageKey() { return `karya_ai_usage_${user?.uid || "anon"}`; }
+function canUseAdvancedAI() {
+  const today = new Date().toISOString().slice(0, 10);
+  const usage = readJSON(aiUsageKey(), {});
+  return usage.date !== today || Number(usage.count || 0) < FREE_AI_DAILY_LIMIT;
 }
-function detectVoiceCommand(text) {
-  const t = text.toLowerCase();
-
-  if (/stop listening|pause listening|sleep/i.test(t)) {
-    return { type: "stop-listening" };
-  }
-
-  if (/start listening|resume listening|wake up/i.test(t)) {
-    return { type: "start-listening" };
-  }
-
-  if (/voice only mode|hands free mode/i.test(t)) {
-    return { type: "enable-voice-only" };
-  }
-
-  if (/exit voice mode|disable voice/i.test(t)) {
-    return { type: "disable-voice-only" };
-  }
-
-  if (/mute voice|stop speaking/i.test(t)) {
-    return { type: "mute-voice" };
-  }
-
-  if (/unmute voice|start speaking/i.test(t)) {
-    return { type: "unmute-voice" };
-  }
-
-  return null;
+function recordAdvancedAIUse() {
+  const today = new Date().toISOString().slice(0, 10);
+  const usage = readJSON(aiUsageKey(), {});
+  localStorage.setItem(aiUsageKey(), JSON.stringify({
+    date: today,
+    count: usage.date === today ? Number(usage.count || 0) + 1 : 1,
+  }));
 }
-
-function handleVoiceCommand(command) {
-  switch (command.type) {
-    case "stop-listening":
-      isListening = false;
-      recognition.stop();
-      system("Listening stopped");
-      break;
-
-    case "start-listening":
-      if (!isListening) {
-        isListening = true;
-        recognition.start();
-        system("Listening resumed");
-      }
-      break;
-
-    case "enable-voice-only":
-      voiceOnlyMode = true;
-      recognition.continuous = true;
-      system("Voice-only mode enabled");
-      ai("You can speak freely. I am listening.");
-      break;
-
-    case "disable-voice-only":
-      voiceOnlyMode = false;
-      recognition.continuous = false;
-      system("Voice-only mode disabled");
-      break;
-
-    case "mute-voice":
-      speechEnabled = false;
-      window.speechSynthesis.cancel();
-      system("AI voice muted");
-      break;
-
-    case "unmute-voice":
-      speechEnabled = true;
-      system("AI voice unmuted");
-      break;
-  }
+function hasGeminiConsent() {
+  return localStorage.getItem(`karya_gemini_consent_${user?.uid || "anon"}`) === "allowed";
 }
-
-let behaviorMemory = JSON.parse(
-  localStorage.getItem("karya_behavior_memory")
-) || {
-  taskAddTimes: {},
-  priorityUsage: { high: 0, medium: 0, low: 0 },
-  frequentTasks: {},
-  procrastinationScore: 0,
-  lastActiveHour: null,
-};
-
-function saveBehaviorMemory() {
-  localStorage.setItem("karya_behavior_memory", JSON.stringify(behaviorMemory));
+function selectTaskContext(tasks) {
+  return [...tasks]
+    .sort((a, b) =>
+      Number(Boolean(a.completed)) - Number(Boolean(b.completed)) ||
+      Number(b.priority === "high") - Number(a.priority === "high") ||
+      new Date(a.dueDate || "9999-12-31") - new Date(b.dueDate || "9999-12-31")
+    )
+    .slice(0, 12);
 }
-
-function getMostActiveHour() {
-  const entries = Object.entries(behaviorMemory.taskAddTimes || {});
-  if (!entries.length) return null;
-
-  return Number(entries.reduce((a, b) => (a[1] > b[1] ? a : b))[0]);
+function saveMessage(type, text) {
+  history = [...history, { type, text, time: Date.now() }].slice(-100);
+  localStorage.setItem(`${HISTORY_KEY}_${user?.uid || "anon"}`, JSON.stringify(history));
 }
-
-let intelligenceStarted = false;
-
-let sendTimeout;
-let idleTimer = null;
-
-let speechEnabled = true;
-let lastAddedTask = null;
-
-const btn = document.getElementById("karyaAiBtn");
-const panel = document.getElementById("karyaAiPanel");
-const closeBtn = document.getElementById("closeAi");
-const sendBtn = document.getElementById("sendBtn");
-const inputEl = document.getElementById("karyaInput");
-const messagesEl = document.getElementById("karyaMessages");
-const aiVoiceBtn = document.getElementById("aiVoiceBtn");
-const actionButtons = document.querySelectorAll(".action-btn");
-const startNewChat = document.getElementById("startNewChat");
-const openHistory = document.getElementById("openHistory");
-const toggleSpeechBtn = document.getElementById("toggleSpeechBtn");
-toggleSpeechBtn?.addEventListener("click", () => {
-  speechEnabled = !speechEnabled;
-
-  toggleSpeechBtn.textContent = speechEnabled ? "🔊" : "🔇";
-
-  if (!speechEnabled) {
-    window.speechSynthesis.cancel();
-    system(" AI voice muted");
-  } else {
-    system(" AI voice enabled");
-  }
-});
-let recognition = null;
-let isListening = false;
-let lastTranscript = "";
-let speechQueue = [];
-let isSpeaking = false;
-let lastUserActivity = Date.now();
-let proactiveCooldown = false;
-let predictiveCooldown = false;
-let voiceOnlyMode = false;
-
-let isOnline = navigator.onLine;
-let aiMode = "local";
-
-window.addEventListener("online", () => {
-  isOnline = true;
-  updateAiMode();
-  system("Back online. Hybrid AI enabled.");
-  syncPendingActions();
-});
-
-window.addEventListener("offline", () => {
-  isOnline = false;
-  updateAiMode();
-  system("Offline mode. Local AI only.");
-});
-
-function updateAiMode() {
-  if (!navigator.onLine) {
-    aiMode = "local";
-    return;
-  }
-
-  aiMode = "hybrid";
+function append(className, text) {
+  const message = document.createElement("div");
+  message.className = `karya-msg ${className}`;
+  message.textContent = text;
+  el.messages.appendChild(message);
+  el.messages.scrollTop = el.messages.scrollHeight;
 }
-
-function initVoice() {
-  const SpeechRecognition =
-    window.SpeechRecognition || window.webkitSpeechRecognition;
-
-  if (!SpeechRecognition) {
-    console.warn("SpeechRecognition not supported");
-    return;
-  }
-
-  recognition = new SpeechRecognition();
-  recognition.lang = "en-US";
-  recognition.continuous = false;
-  recognition.interimResults = false;
-
-  recognition.onstart = () => {
-    isListening = true;
-    aiVoiceBtn?.classList.add("listening");
-  };
-
-  recognition.onend = () => {
-    if (isListening) {
-      try {
-        recognition.start();
-      } catch (e) {
-        console.warn("Restart blocked");
-      }
-    } else {
-      aiVoiceBtn?.classList.remove("listening");
-    }
-  };
-
-  recognition.onresult = (event) => {
-    lastUserActivity = Date.now();
-
-    const transcript = event.results[0][0].transcript.trim();
-    if (!transcript) return;
-
-    const command = detectVoiceCommand(transcript);
-
-    if (command) {
-      handleVoiceCommand(command);
-      return;
-    }
-
-    inputEl.value = transcript;
-
-    clearTimeout(sendTimeout);
-
-    sendTimeout = setTimeout(
-      () => {
-        onSend();
-      },
-      voiceOnlyMode ? 400 : 1200
-    );
-  };
-
-  recognition.onerror = (e) => {
-    console.error("Voice error:", e);
-    isListening = false;
-    aiVoiceBtn?.classList.remove("listening");
-  };
-}
-function getTimeGreeting() {
-  const hour = new Date().getHours();
-
-  if (hour < 12) return "Good morning";
-  if (hour < 17) return "Good afternoon";
-  if (hour < 21) return "Good evening";
-  return "Good night";
-}
-
-window.addEventListener("load", initVoice);
-
-let currentAction = "chat";
-let user = null;
-let chatHistory = [];
-const HISTORY_KEY = "karyaai_history_v3";
-
-onAuthStateChanged(auth, (u) => {
-  user = u || null;
-  loadHistory(user ? user.uid : "anon");
-});
-
-btn.onclick = openPanel;
-closeBtn.onclick = closePanel;
-startNewChat.onclick = newChat;
-openHistory.onclick = showHistory;
-sendBtn.onclick = onSend;
-
-aiVoiceBtn?.addEventListener("click", () => {
-  voiceOnlyMode = true;
-
-  if (!recognition) {
-    ai(" Voice not supported in this browser.");
-    return;
-  }
-
-  if (isListening) {
-    isListening = false;
-    recognition.stop();
-    system("Voice listening stopped");
-  } else {
-    isListening = true;
-    recognition.start();
-    system("Listening continuously...");
-  }
-});
-
-inputEl.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") onSend();
-});
-
-actionButtons.forEach((b) => {
-  b.onclick = () => {
-    actionButtons.forEach((x) => x.classList.remove("active"));
-    b.classList.add("active");
-    currentAction = b.dataset.action;
-    system(`Mode: ${b.textContent.trim()}`);
-  };
-});
-
-function openPanel() {
-  panel.classList.add("open");
-  if (voiceOnlyMode && recognition && !isListening) {
-    isListening = true;
-    recognition.start();
-  }
-
-  startIntelligence();
-  if (isMorning() && !aiContext.focusMode) {
-    morningPlanner();
-  }
-
-  proactiveGreeting();
-  startIdleCheck();
-
-  if (!messagesEl.innerHTML) {
-    const greeting = getTimeGreeting();
-    const name = aiMemory.name ? ` ${aiMemory.name}` : "";
-
-    ai(`${greeting}${name}   
-
-I’m Karya AI — your smart task assistant.
-
-Tell me what you want to do next.`);
-  }
-  system(`AI Mode: ${aiMode.toUpperCase()}`);
-}
-
-function proactiveGreeting() {
-  const hour = new Date().getHours();
-  let timeGreeting = "Hey";
-
-  if (hour < 12) timeGreeting = "Good morning";
-  else if (hour < 18) timeGreeting = "Good afternoon";
-  else timeGreeting = "Good evening";
-
-  const name = aiMemory.name ? ` ${aiMemory.name}` : "";
-
-  if (aiContext.focusMode) {
-    return ai(`${timeGreeting}${name}. Focus mode is ON. Ready when you are.`);
-  }
-
-  ai(`${timeGreeting}${name} `);
-
-  if (user) {
-    getDocs(collection(db, "users", user.uid, "tasks")).then((snap) => {
-      const tasks = snap.docs.map((d) => d.data());
-      const pendingHigh = tasks.filter(
-        (t) => !t.completed && t.priority === "high"
-      );
-
-      if (pendingHigh.length) {
-        ai(
-          ` You have ${pendingHigh.length} high-priority task(s).  
-Want to start with "${pendingHigh[0].name}"?`
-        );
-      } else {
-        ai(" Small progress today beats perfect plans tomorrow.");
-      }
-    });
-  }
-}
-function startIdleCheck() {
-  clearTimeout(idleTimer);
-
-  idleTimer = setTimeout(() => {
-    if (!messagesEl.innerHTML || aiContext.focusMode) return;
-
-    ai(" I’m here if you want to plan something or add a task.");
-  }, 15000);
-}
-
-function closePanel() {
-  panel.classList.remove("open");
-
-  if (isListening) {
-    isListening = false;
-    recognition.stop();
-  }
-}
-
-function userMsg(text) {
-  clearTimeout(idleTimer);
-  append("karya-user", text);
-  save({ type: "user", text, time: Date.now() });
-}
-async function ai(text) {
-  text = normalizeAIReply(text);
-  const finalText = applyPersonaTone(text);
-
-  const msgEl = document.createElement("div");
-  msgEl.className = "karya-msg karya-ai typing";
-  messagesEl.appendChild(msgEl);
-  messagesEl.scrollTop = messagesEl.scrollHeight;
-
-  await typeText(msgEl, finalText);
-  msgEl.classList.remove("typing");
-
-  speak(finalText);
-
-  save({ type: "ai", text: finalText, time: Date.now() });
-}
-
 function system(text) {
-  const d = document.createElement("div");
-  d.style.opacity = "0.7";
-  d.style.fontSize = "12px";
-  d.textContent = text;
-  messagesEl.appendChild(d);
+  const message = document.createElement("div");
+  message.className = "karya-system";
+  message.textContent = text;
+  el.messages.appendChild(message);
+  el.messages.scrollTop = el.messages.scrollHeight;
 }
-function append(cls, text) {
-  const d = document.createElement("div");
-  d.className = `karya-msg ${cls}`;
-  d.textContent = text;
-  messagesEl.appendChild(d);
-  messagesEl.scrollTop = messagesEl.scrollHeight;
+function say(text) {
+  const clean = String(text || "I couldn't prepare a response.").trim();
+  append("karya-ai", clean); saveMessage("ai", clean);
+  if (speechEnabled && !state.focusMode && "speechSynthesis" in window) {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(clean); utterance.lang = "en-US";
+    window.speechSynthesis.speak(utterance);
+  }
 }
-
-function save(item) {
-  chatHistory.push(item);
-  if (chatHistory.length > 120) chatHistory.shift();
-  localStorage.setItem(
-    `${HISTORY_KEY}_${user?.uid || "anon"}`,
-    JSON.stringify(chatHistory)
-  );
+function sayUser(text) { append("karya-user", text); saveMessage("user", text); }
+async function getTasks() {
+  if (!user) return [];
+  const snapshot = await getDocs(collection(db, "users", user.uid, "tasks"));
+  return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
 }
-function loadHistory(key) {
-  chatHistory = JSON.parse(localStorage.getItem(`${HISTORY_KEY}_${key}`)) || [];
+async function refreshTaskUI() {
+  if (typeof window.loadTasksFromFirestore === "function") await window.loadTasksFromFirestore();
 }
-function showHistory() {
-  if (!chatHistory.length) return system("No history yet.");
-  system("Recent conversation:");
-  chatHistory
-    .slice(-8)
-    .forEach((h) => system(`${h.type === "user" ? "You" : "AI"}: ${h.text}`));
-}
-
-function isComplexQuery(text) {
-  return /why|explain|how does|difference|compare|analyze deeply|strategy/i.test(
-    text
-  );
-}
-
-function newChat() {
-  messagesEl.innerHTML = "";
-  chatHistory = [];
-  ai(" New chat started. How can I help?");
-  aiContext = {
-    goal: null,
-    mood: "neutral",
-    lastIntent: null,
-    lastTaskMentioned: null,
-    awaitingClarification: null,
-    focusMode: JSON.parse(localStorage.getItem("karya_focus_mode")) || false,
-  };
-}
-
-async function onSend() {
-  if (aiContext.processing) return;
-
-  aiContext.processing = true;
-  lastUserActivity = Date.now();
-
+async function askGemini(question) {
+  if (!navigator.onLine) return localAssistantAnswer(question, "You are offline, so I used Karya's local planning assistant.");
+  if (!canUseAdvancedAI()) return localAssistantAnswer(question, `You have reached today's ${FREE_AI_DAILY_LIMIT}-question Advanced AI limit, so I used Karya's local planning assistant.`);
+  let timeout;
   try {
-    const text = inputEl.value.trim();
-
-    const knowledgeAnswer = matchKnowledgeQuestion(text);
-    if (knowledgeAnswer) {
-      aiContext.lastDecision = {
-        action: "knowledge-answer",
-        reason: "User asked for explanation about the app or a feature.",
-      };
-      return ai(knowledgeAnswer.trim());
-    }
-
-    if (/^why\??$|why did you|how did you decide/i.test(text)) {
-      if (!aiContext.lastDecision) {
-        return ai("I haven’t made a recent decision to explain yet.");
-      }
-
-      const d = aiContext.lastDecision;
-      let explanation = `Here’s why:\n${d.reason}`;
-
-      if (d.task) {
-        explanation += `\nRelated task: "${d.task}"`;
-      }
-
-      return ai(explanation);
-    }
-
-    if (/explain your thinking|explain yourself/i.test(text)) {
-      if (!aiContext.lastDecision) {
-        return ai("Nothing recent to explain. Ask me to do something first.");
-      }
-
-      return ai(
-        `My last action was "${aiContext.lastDecision.action}".\nReason: ${aiContext.lastDecision.reason}`
-      );
-    }
-
-    if (
-      aiContext.pendingAutonomousAction &&
-      /yes|okay|sure|do it|go ahead/i.test(text)
-    ) {
-      const action = aiContext.pendingAutonomousAction;
-      aiContext.pendingAutonomousAction = null;
-
-      if (action.type === "promote-priority") {
-        await promoteTaskPriority(action.taskId);
-        return;
-      }
-    }
-
-    const nameMatch = text.match(/(my name is|i am)\s+([a-z ]+)/i);
-    if (nameMatch) {
-      aiMemory.name = nameMatch[2].trim();
-      saveAiMemory();
-      return ai(`Nice to meet you, ${aiMemory.name}.`);
-    }
-
-    if (!text) return;
-
-    if (/focus mode|deep work|help me focus/i.test(text)) {
-      aiContext.focusMode = !aiContext.focusMode;
-      localStorage.setItem(
-        "karya_focus_mode",
-        JSON.stringify(aiContext.focusMode)
-      );
-
-      return ai(
-        aiContext.focusMode
-          ? "Focus Mode ON. I’ll keep things minimal."
-          : "Focus Mode OFF. I’m back to full support."
-      );
-    }
-
-    if (/same as yesterday|do same again/i.test(text)) {
-      if (!lastAddedTask) {
-        return ai("I don’t have a previous task to repeat yet.");
-      }
-
-      return smartAdd(
-        `add ${lastAddedTask.name} tomorrow priority ${lastAddedTask.priority}`
-      );
-    }
-
-    if (/talk short|short replies/i.test(text)) {
-      aiMemory.preferredTone = "short";
-      saveAiMemory();
-      return ai("Got it. I’ll keep replies short.");
-    }
-
-    if (/be motivational|motivate me/i.test(text)) {
-      aiMemory.preferredTone = "motivational";
-      saveAiMemory();
-      return ai("Got it. I’ll push you harder.");
-    }
-
-    if (/normal mode/i.test(text)) {
-      aiMemory.preferredTone = "normal";
-      saveAiMemory();
-      return ai("Back to normal responses.");
-    }
-
-    // --- Karya AI extra intents ---
-
-    // Edit task
-    if (/edit task|update task|change task/i.test(text)) {
-      aiContext.lastIntent = "edit-task";
-      ai("Tell me which task you want to edit and what should change.");
-      return;
-    }
-
-    // Delete task
-    if (/delete task|remove task|trash task/i.test(text)) {
-      aiContext.lastIntent = "delete-task";
-      ai("Which task should I delete?");
-      return;
-    }
-
-    // Show completed tasks
-    if (
-      /show completed|completed tasks|show done tasks|tasks i finished/i.test(
-        text
-      )
-    ) {
-      aiContext.lastIntent = "show-completed";
-      await showCompletedTasksFromAI();
-      aiContext.lastIntent = null;
-      return;
-    }
-
-    // Sorting and filtering
-    if (/sort tasks|filter tasks|reorder tasks|show only/i.test(text)) {
-      aiContext.lastIntent = "sort-filter";
-      ai(
-        "Tell me how: for example, 'by priority', 'by due date', or 'only today’s tasks'."
-      );
-      return;
-    }
-
-    // Theme change
-    if (/change theme|switch theme|dark mode|light mode/i.test(text)) {
-      aiContext.lastIntent = null;
-      toggleThemeFromAI(text);
-      return;
-    }
-
-    // Rating / feedback
-    if (/rate app|give feedback|feedback for karya|karya rating/i.test(text)) {
-      aiContext.lastIntent = "feedback";
-      ai("Share your feedback in one short sentence and I will save it.");
-      return;
-    }
-
-    // Show profile
-    if (/show my profile|my profile|who am i/i.test(text)) {
-      aiContext.lastIntent = "show-profile";
-      showUserProfileFromAI();
-      aiContext.lastIntent = null;
-      return;
-    }
-
-    // Sync my tasks
-    if (/sync my tasks|sync tasks|refresh tasks|reload tasks/i.test(text)) {
-      aiContext.lastIntent = "sync-tasks";
-      await syncTasksFromAI();
-      aiContext.lastIntent = null;
-      return;
-    }
-
-    inputEl.value = "";
-    userMsg(text);
-
-    if (text.length < 15) aiMemory.preferredTone = "short";
-    else if (text.length > 60) aiMemory.preferredTone = "motivational";
-    saveAiMemory();
-
-    // Follow-up for special intents (edit/delete/feedback/sort)
-    if (aiContext.lastIntent === "edit-task") {
-      handleEditTaskFromAI(text);
-      aiContext.lastIntent = null;
-      return;
-    }
-
-    if (aiContext.lastIntent === "delete-task") {
-      handleDeleteTaskFromAI(text);
-      aiContext.lastIntent = null;
-      return;
-    }
-
-    if (aiContext.lastIntent === "feedback") {
-      await saveFeedbackFromAI(text);
-      aiContext.lastIntent = null;
-      return;
-    }
-
-    if (aiContext.lastIntent === "sort-filter") {
-      handleSortFilterFromAI(text);
-      aiContext.lastIntent = null;
-      return;
-    }
-
-    if (aiContext.awaitingClarification) {
-      const pending = aiContext.awaitingClarification;
-      aiContext.awaitingClarification = null;
-      return smartAdd(`${pending.text} ${text}`);
-    }
-
-    if (
-      detectCorrection(text) &&
-      lastAddedTask &&
-      /high|medium|low/i.test(text)
-    ) {
-      learnPriorityCorrection(lastAddedTask.name, text);
-      return ai("Understood. I’ll remember this preference for next time.");
-    }
-
-    updateContextFromText(text);
-
-    if (currentAction === "smart-add") return smartAdd(text);
-    if (currentAction === "analyse") return analyse();
-    if (currentAction === "reminders") return reminders();
-    if (currentAction === "completed") return showCompletedTasksFromAI();
-
-    await chat(text);
-
-    if (
-      /later|not now|remind me later/i.test(text) &&
-      aiContext.lastTaskMentioned
-    ) {
-      return ai(
-        `Okay. I’ll wait.\nTell me when you want to schedule "${aiContext.lastTaskMentioned}".`
-      );
-    }
+    const token = await user.getIdToken();
+    const tasks = selectTaskContext(await getTasks());
+    const controller = new AbortController();
+    timeout = setTimeout(() => controller.abort(), 20000);
+    const reply = await onlineBrain({
+      question,
+      token,
+      tasks,
+      history: history.slice(-6),
+      preferences: { responseStyle: localStorage.getItem(aiPreferenceKey("response_style")) || "balanced" },
+      signal: controller.signal,
+    });
+    recordAdvancedAIUse();
+    say(reply);
   } catch (error) {
-    console.error("onSend error:", error);
-    ai("Something went wrong. Please try again.");
+    console.error("Gemini fallback failed:", error);
+    await localAssistantAnswer(question, error.name === "AbortError" ? "Advanced AI took too long, so I used Karya's local planning assistant." : "Advanced AI is unavailable, so I used Karya's local planning assistant.");
   } finally {
-    aiContext.processing = false;
+    clearTimeout(timeout);
   }
 }
-
-async function chat(text) {
-  let tasks = [];
-  updatePersonaFromBehavior();
-
-  if (user) {
-    const snap = await getDocs(collection(db, "users", user.uid, "tasks"));
-    tasks = snap.docs.map((d) => d.data());
-  }
-
-  if (aiMode === "local") {
-    const decision = await karyaBrain({
-      text,
-      mode: currentAction,
+async function localAssistantAnswer(question, prefix = "") {
+  try {
+    const result = await karyaBrain({
+      text: question,
       user,
-      tasks,
-      context: aiContext,
-      memory: aiMemory,
-      offline: true,
+      tasks: await getTasks(),
+      context: { focusMode: state.focusMode },
+      memory: { preferredTone: localStorage.getItem(aiPreferenceKey("response_style")) || "balanced" },
     });
-
-    return ai(
-      addConfidenceDisclaimer(decision.reply, decision.confidence || 0.6)
-    );
+    const reply = result?.reply || "I can still manage tasks locally. Try “help” to see supported commands.";
+    say(`${prefix ? `${prefix}\n\n` : ""}${reply}`);
+  } catch (error) {
+    console.error("Local assistant fallback failed:", error);
+    say("I can still manage your tasks directly. Try “help” to see supported commands.");
   }
-
-  if (aiMode === "hybrid" && !isComplexQuery(text)) {
-    const decision = await karyaBrain({
-      text,
-      mode: currentAction,
-      user,
-      tasks,
-      context: aiContext,
-      memory: aiMemory,
-    });
-
-    return ai(
-      addConfidenceDisclaimer(decision.reply, decision.confidence || 0.6)
-    );
-  }
-
-  if (isOnline && isComplexQuery(text)) {
-    const online = await onlineBrain(
-      `User tone: ${aiPersona.tone}.
-     Productivity: ${aiPersona.productivityLevel}.
-     Answer clearly and briefly.
-     Question: ${text}`
-    );
-
-    return ai(online.reply);
-  }
-
-  const online = await onlineBrain(text);
-  return ai(online.reply);
 }
-
-function parseSmartDate(text) {
-  const now = new Date();
-  const t = text.toLowerCase();
-
-  const buckets = {
-    morning: 9,
-    afternoon: 13,
-    evening: 18,
-    night: 21,
-  };
-
-  if (t.includes("day after tomorrow")) now.setDate(now.getDate() + 2);
-  else if (t.includes("tomorrow")) now.setDate(now.getDate() + 1);
-
-  const inHours = t.match(/in (\d+) hour/);
-  if (inHours) now.setHours(now.getHours() + Number(inHours[1]));
-
-  Object.keys(buckets).forEach((b) => {
-    if (t.includes(b)) now.setHours(buckets[b], 0);
-  });
-
-  const time = t.match(/(\d{1,2})(:\d{2})?\s?(am|pm)?/);
-  if (time) {
-    let h = Number(time[1]);
-    if (time[3]?.toLowerCase() === "pm" && h < 12) h += 12;
-    now.setHours(h, time[2] ? Number(time[2].slice(1)) : 0);
-  }
-
-  return now;
+function normalise(value) { return String(value || "").toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim(); }
+function formatDate(value) { const date = new Date(value); return Number.isNaN(date.getTime()) ? "no due date" : date.toLocaleString(); }
+function taskLabel(task) { return `“${task.name}”${task.dueDate ? ` — ${formatDate(task.dueDate)}` : ""}`; }
+function priorityFrom(text) {
+  if (/\b(high|urgent|asap|critical|important)\b/i.test(text)) return "high";
+  if (/\b(low|optional|whenever|someday)\b/i.test(text)) return "low";
+  return /\b(medium|normal)\b/i.test(text) ? "medium" : null;
 }
-
-function detectPriority(text) {
-  const t = text.toLowerCase();
-  for (const phrase in aiCorrections.priorityFixes) {
-    if (t.includes(phrase)) {
-      return aiCorrections.priorityFixes[phrase];
-    }
-  }
-
-  if (
-    /high priority|priority high|keep priority high|make it high|urgent|asap|critical|important|max|pluse|highest|positive|maximum/i.test(
-      t
-    )
-  ) {
-    return "high";
-  }
-
-  if (
-    /low priority|priority low|optional|whenever|someday|not important|less|down|min|negative|minus|keep priority low|minimum/i.test(
-      t
-    )
-  ) {
-    return "low";
-  }
-
-  return "medium";
+function tagsFromText(text) {
+  return [...new Set((text.match(/#[a-z0-9_-]{1,24}/gi) || [])
+    .map((tag) => tag.slice(1).toLowerCase()))].slice(0, 8);
 }
-function learnPriorityCorrection(originalText, correctedText) {
-  const original = originalText.toLowerCase();
-  const corrected = correctedText.toLowerCase();
-
-  if (corrected.includes("high")) {
-    aiCorrections.priorityFixes[original] = "high";
-  } else if (corrected.includes("low")) {
-    aiCorrections.priorityFixes[original] = "low";
-  } else if (corrected.includes("medium")) {
-    aiCorrections.priorityFixes[original] = "medium";
-  }
-
-  saveAiCorrections();
+function projectFromText(text) {
+  const match = text.match(/\bproject\s*:\s*([^,#]+?)(?=\s+#|\s+(?:today|tomorrow|at|high|medium|low|daily|weekly|every)\b|$)/i);
+  return match ? match[1].trim().slice(0, 40) : "Inbox";
 }
-
-function detectHabit(tasks) {
-  const map = {};
-
-  tasks.forEach((t) => {
-    const key = t.name.toLowerCase();
-    map[key] = (map[key] || 0) + 1;
-  });
-
-  const habit = Object.entries(map).find(([_, count]) => count >= 3);
-
-  if (!habit) return null;
-
-  return {
-    name: habit[0],
-    count: habit[1],
-  };
+function recurrenceFrom(text) {
+  if (/\b(every week|weekly)\b/i.test(text)) return "weekly";
+  return /\b(every day|daily)\b/i.test(text) ? "daily" : "none";
 }
-
-async function smartAdd(text) {
-  const hasTime =
-    /(today|tomorrow|am|pm|in \d+|morning|evening|night|noon)/i.test(text);
-
-  if (!hasTime) {
-    aiContext.awaitingClarification = {
-      type: "task-time",
-      text,
-    };
-    return ai(
-      "I can schedule this for today evening by default. Or tell me a time."
-    );
-  }
-
-  if (!user) return ai("Please login to save tasks.");
-
-  const date = parseSmartDate(text);
-
-  const priority = detectPriority(text) || "medium";
-
-  const title =
-    text
-      .replace(/^add\s+/i, "")
-      .replace(
-        /(today|tomorrow|morning|evening|night|noon|at\s+\d+|\bin\s+\d+.*|\d+(:\d+)?\s*(am|pm)?)/gi,
-        ""
-      )
-      .replace(/\b(high|medium|low)\b/gi, "")
-      .trim() || "New Task";
-
-  const taskPayload = {
-    name: title,
-    dueDate: date.toISOString(),
-    completed: false,
-    priority,
-    createdAt: new Date().toISOString(),
-  };
-
-  if (!navigator.onLine) {
-    queueOfflineAction({
-      type: "addTask",
-      payload: taskPayload,
-    });
-
-    lastAddedTask = { name: title, priority };
-    learnFromTask(taskPayload);
-
-    return ai(
-      "You're offline. Task saved locally and will sync automatically."
-    );
-  }
-  if (!/priority|high|low|medium/i.test(text)) {
-    const bias = getUserPriorityBias();
-    if (bias !== "medium") {
-      taskPayload.priority = bias;
-    }
-  }
-  if (!/today|tomorrow|am|pm|morning|evening|night/i.test(text)) {
-    const bestHour = getMostActiveHour();
-    if (bestHour !== null) {
-      ai(
-        `You usually work best around ${bestHour}:00.  
-Want me to schedule this task for that time?`
-      );
-    }
-  }
-
-  await addDoc(collection(db, "users", user.uid, "tasks"), taskPayload);
-
-  lastAddedTask = { name: title, priority };
-  learnFromTask(taskPayload);
-
-  recordDecision({
-    action: "add-task",
-    reason: "User explicitly requested to add a task with time and priority.",
-    confidence: 0.95,
-    data: { title, priority },
-  });
-
-  ai(
-    `Task added\n` +
-      `${title}\n` +
-      `${date.toLocaleString()}\n` +
-      `Priority: ${priority.toUpperCase()}`
-  );
-
-  setTimeout(() => {
-    ai("I’ll remind you closer to the time. Stay focused.");
-  }, 1800);
-}
-function learnFromTask(task) {
-  const hour = new Date(task.dueDate).getHours();
-
-  behaviorMemory.taskAddTimes[hour] =
-    (behaviorMemory.taskAddTimes[hour] || 0) + 1;
-
-  behaviorMemory.priorityUsage[task.priority] =
-    (behaviorMemory.priorityUsage[task.priority] || 0) + 1;
-
-  const key = task.name.toLowerCase();
-  behaviorMemory.frequentTasks[key] =
-    (behaviorMemory.frequentTasks[key] || 0) + 1;
-
-  behaviorMemory.lastActiveHour = hour;
-
-  saveBehaviorMemory();
-}
-
-async function analyse() {
-  if (!user) return ai("Login required.");
-
-  const snap = await getDocs(collection(db, "users", user.uid, "tasks"));
-  const tasks = snap.docs.map((d) => d.data());
-
-  const pending = tasks.filter((t) => !t.completed).length;
-  const completed = tasks.filter((t) => t.completed).length;
-  const coaching = generateCoaching(tasks);
-
-  ai(` Productivity Analysis  
-Total: ${tasks.length}  
-Completed: ${completed}  
-Pending: ${pending}  
-
-${coaching || ""}
-`);
-}
-function generateCoaching(tasks) {
-  if (!tasks.length) return null;
-
-  const completed = tasks.filter((t) => t.completed).length;
-  const pending = tasks.length - completed;
-
-  const highPriority = tasks.filter((t) => t.priority === "high").length;
-
-  if (pending > completed) {
-    return " Tip: Focus on completing pending tasks before adding new ones.";
-  }
-
-  if (highPriority === 0) {
-    return " Tip: Mark at least one task as HIGH priority daily.";
-  }
-
-  return " You’re managing tasks well. Keep this momentum going!";
-}
-//
-function getUserPriorityBias() {
-  const p = behaviorMemory.priorityUsage;
-  const max = Math.max(p.high, p.medium, p.low);
-
-  if (max === p.high) return "high";
-  if (max === p.low) return "low";
-  return "medium";
-}
-
-async function reminders() {
-  if (!user) return ai("Login required.");
-
-  const snap = await getDocs(collection(db, "users", user.uid, "tasks"));
-  const upcoming = snap.docs
-    .map((d) => d.data())
-    .filter((t) => t.dueDate)
-    .slice(0, 5);
-
-  if (!upcoming.length) return ai("No upcoming tasks.");
-
-  ai(" Upcoming tasks:");
-  upcoming.forEach((t) =>
-    system(`${t.name} → ${new Date(t.dueDate).toLocaleString()}`)
-  );
-}
-
-// === KARYA AI EXTRA HELPERS (Edit/Delete/Completed/Sort/Theme/Profile/Sync/Feedback) ===
-
-// Completed tasks list
-async function showCompletedTasksFromAI() {
-  if (!user) return ai("Login required.");
-
-  const snap = await getDocs(collection(db, "users", user.uid, "tasks"));
-  const completed = snap.docs.map((d) => d.data()).filter((t) => t.completed);
-
-  if (!completed.length) {
-    ai("You have no completed tasks yet.");
-    return;
-  }
-
-  ai("Here are some of your completed tasks:");
-  completed
-    .slice(0, 7)
-    .forEach((t) =>
-      system(`✔ ${t.name || t.title || "Task"} (${t.priority || "medium"})`)
-    );
-}
-
-// Theme change from AI
-function toggleThemeFromAI(text) {
+function parseDate(text) {
   const lower = text.toLowerCase();
-
-  if (lower.includes("dark")) {
-    if (window.setTheme) window.setTheme("dark");
-    ai("Switched to dark theme.");
-    return;
-  }
-
-  if (lower.includes("light")) {
-    if (window.setTheme) window.setTheme("light");
-    ai("Switched to light theme.");
-    return;
-  }
-
-  if (window.toggleTheme) {
-    window.toggleTheme();
-    ai("Theme toggled.");
-  } else {
-    ai("Theme controls are not available in this version.");
-  }
-}
-
-// Save feedback/rating
-async function saveFeedbackFromAI(message) {
-  if (!user) return ai("Login required before saving feedback.");
-
-  try {
-    await addDoc(collection(db, "users", user.uid, "feedback"), {
-      text: message,
-      createdAt: Date.now(),
-    });
-
-    ai("Thanks for your feedback. I have saved it.");
-  } catch (e) {
-    console.error("Feedback save failed:", e);
-    ai("I could not save your feedback right now. Please try again later.");
-  }
-}
-
-// Show profile info
-function showUserProfileFromAI() {
-  if (!user) return ai("You are not logged in.");
-
-  const name = user.displayName || aiMemory.name || "friend";
-  const email = user.email || "no email";
-
-  ai(`Your profile:
-Name: ${name}
-Email: ${email}`);
-}
-
-// Force sync of tasks (reload UI list)
-async function syncTasksFromAI() {
-  try {
-    if (window.loadTasksFromFirestore) {
-      await window.loadTasksFromFirestore();
-      ai("Your tasks are now synced from the cloud.");
+  if (!/\b(today|tomorrow|day after tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|daily|every day|weekly|every week|at \d|\d{1,2}(:\d{2})?\s*(am|pm)|in \d+ (minute|hour|day))\b/i.test(lower)) return null;
+  const date = new Date(); date.setSeconds(0, 0);
+  if (/weekly|every week/i.test(lower)) date.setDate(date.getDate() + 7);
+  else if (/day after tomorrow/i.test(lower)) date.setDate(date.getDate() + 2);
+  else if (/tomorrow/i.test(lower)) date.setDate(date.getDate() + 1);
+  else {
+    const inTime = lower.match(/in\s+(\d+)\s+(minute|hour|day)s?/);
+    if (inTime) {
+      const amount = Number(inTime[1]);
+      if (inTime[2] === "minute") date.setMinutes(date.getMinutes() + amount);
+      if (inTime[2] === "hour") date.setHours(date.getHours() + amount);
+      if (inTime[2] === "day") date.setDate(date.getDate() + amount);
     } else {
-      // fall back: just run the pending-action sync you already have
-      await syncPendingActions();
-    }
-  } catch (e) {
-    console.error("Sync error:", e);
-    ai("I tried to sync your tasks, but something went wrong.");
-  }
-}
-
-// Delegate editing to UI layer
-function handleEditTaskFromAI(text) {
-  if (window.editTaskFromAI) {
-    window.editTaskFromAI(text);
-    ai("Okay, I have sent the edit request to your task list.");
-  } else {
-    ai("Editing via AI is not fully wired yet in this build.");
-  }
-}
-
-// Delegate delete to UI layer
-function handleDeleteTaskFromAI(text) {
-  if (window.deleteTaskFromAI) {
-    window.deleteTaskFromAI(text);
-    ai("I asked the task list to delete that task.");
-  } else {
-    ai("Deleting tasks via AI is not available in this build.");
-  }
-}
-
-// Sorting / filtering delegation
-function handleSortFilterFromAI(text) {
-  if (window.sortFilterTasksFromAI) {
-    window.sortFilterTasksFromAI(text);
-    ai("Okay, updating your task view.");
-  } else {
-    ai("Sorting and filtering from AI is not enabled yet.");
-  }
-}
-
-async function proactiveCheck() {
-  if (!user) return;
-
-  const snap = await getDocs(collection(db, "users", user.uid, "tasks"));
-  const tasks = snap.docs.map((d) => d.data());
-  const activeHour = getMostActiveHour();
-  const nowHour = new Date().getHours();
-
-  if (
-    activeHour !== null &&
-    Math.abs(activeHour - nowHour) <= 1 &&
-    !aiContext.focusMode
-  ) {
-    const suggestion = predictNextTask(tasks);
-    if (suggestion) {
-      ai(
-        `This is usually your productive time.  
-Want to work on "${suggestion.name}" now?`
-      );
-      return;
+      const days = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+      const requested = days.find((day) => lower.includes(day));
+      if (requested) date.setDate(date.getDate() + ((days.indexOf(requested) - date.getDay() + 7) % 7 || 7));
     }
   }
-
-  if (!tasks.length) {
-    ai("Tip: You have no tasks yet. Want to plan your day?");
-    return;
+  let hour = /evening/i.test(lower) ? 18 : /afternoon/i.test(lower) ? 14 : /night/i.test(lower) ? 21 : /noon/i.test(lower) ? 12 : 9;
+  let minute = 0;
+  const clock = lower.match(/(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/);
+  if (clock) { hour = Number(clock[1]); minute = Number(clock[2] || 0); if (clock[3] === "pm" && hour < 12) hour += 12; if (clock[3] === "am" && hour === 12) hour = 0; }
+  date.setHours(hour, minute, 0, 0);
+  if (!/tomorrow|day after tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|weekly|every week|in \d+ day/i.test(lower) && date < new Date()) date.setDate(date.getDate() + 1);
+  return date.toISOString();
+}
+function titleFromAdd(text) {
+  return text.replace(/^(add|create|schedule|plan|remind me to)\s+(a\s+)?(task\s+)?/i, "")
+    .replace(/\bproject\s*:\s*([^,#]+?)(?=\s+#|\s+(?:today|tomorrow|at|high|medium|low)\b|$)/gi, "")
+    .replace(/#[a-z0-9_-]{1,24}/gi, "")
+    .replace(/\b(every day|daily|every week|weekly)\b/gi, "")
+    .replace(/\b(with )?(high|medium|low|urgent|asap|critical|important|optional)\s*(priority)?\b/gi, "")
+    .replace(/\b(day after tomorrow|tomorrow|today|this (morning|afternoon|evening|night)|next (monday|tuesday|wednesday|thursday|friday|saturday|sunday)|monday|tuesday|wednesday|thursday|friday|saturday|sunday|at\s+\d{1,2}(?::\d{2})?\s*(am|pm)?|in\s+\d+\s+(minutes?|hours?|days?)|\d{1,2}(?::\d{2})?\s*(am|pm))\b/gi, "")
+    .replace(/\s+/g, " ").trim().replace(/[,.]$/, "");
+}
+function findTask(tasks, requested) {
+  const needle = normalise(requested);
+  if ((!needle || /^(it|that|this|last task)$/.test(needle)) && state.lastTask) return tasks.find((task) => task.id === state.lastTask.id);
+  if (/^(first|next) task$/.test(needle)) return tasks.filter((task) => !task.completed).sort((a, b) => new Date(a.dueDate || "9999-12-31") - new Date(b.dueDate || "9999-12-31"))[0] || null;
+  if (/^last task$/.test(needle)) return tasks[tasks.length - 1] || null;
+  const exact = tasks.find((task) => normalise(task.name) === needle); if (exact) return exact;
+  const matches = tasks.map((task) => {
+    const words = needle.split(" ").filter(Boolean); const title = normalise(task.name);
+    return { task, score: words.filter((word) => title.includes(word)).length / Math.max(words.length, 1) };
+  }).filter((match) => match.score >= .5).sort((a, b) => b.score - a.score);
+  return matches.length === 1 || (matches[0] && matches[0].score > (matches[1]?.score || 0)) ? matches[0].task : null;
+}
+function taskReference(text) {
+  return text.replace(/^(mark|complete|finish|done|reopen|undo|uncomplete|delete|remove|edit|update|change|rename)\s+(the\s+)?(task\s+)?/i, "")
+    .replace(/\b(as\s+)?(completed|complete|done|pending|unfinished)\b/gi, "")
+    .replace(/\b(to\s+)?(high|medium|low)\s+(priority)?\b/gi, "")
+    .replace(/\b(due\s+)?(today|tomorrow|day after tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|at\s+\d{1,2}.*)$/i, "").trim();
+}
+async function addTask(text) {
+  const title = titleFromAdd(text);
+  if (!title) return say("What should I add? Example: Add submit report tomorrow at 5 pm, high priority.");
+  const task = {
+    name: title,
+    priority: priorityFrom(text) || "medium",
+    project: projectFromText(text),
+    tags: tagsFromText(text),
+    status: "open",
+    description: "",
+    estimatedMinutes: 0,
+    subtasks: [],
+    recurrence: recurrenceFrom(text),
+    dueDate: parseDate(text),
+    completed: false,
+    notified: false,
+    warned: false,
+    snoozedUntil: null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  const created = await addDoc(collection(db, "users", user.uid, "tasks"), task);
+  state.lastTask = { id: created.id, ...task }; saveState(); await refreshTaskUI();
+  say(`Added ${taskLabel(task)} (${task.priority} priority, ${task.project})${task.recurrence !== "none" ? `, repeats ${task.recurrence}` : ""}.`);
+}
+async function listTasks(text) {
+  const tasks = await getTasks(), now = new Date(); let selected = tasks, heading = "Your tasks";
+  if (/completed|done|finished/i.test(text)) { selected = tasks.filter((task) => task.completed); heading = "Completed tasks"; }
+  else if (/pending|open|incomplete|not done/i.test(text)) { selected = tasks.filter((task) => !task.completed); heading = "Open tasks"; }
+  else if (/overdue|late|missed/i.test(text)) { selected = tasks.filter((task) => !task.completed && task.dueDate && new Date(task.dueDate) < now); heading = "Overdue tasks"; }
+  else if (/today/i.test(text)) { selected = tasks.filter((task) => task.dueDate && new Date(task.dueDate).toDateString() === now.toDateString()); heading = "Tasks due today"; }
+  else if (/tomorrow/i.test(text)) { const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1); selected = tasks.filter((task) => task.dueDate && new Date(task.dueDate).toDateString() === tomorrow.toDateString()); heading = "Tasks due tomorrow"; }
+  const projectMatch = text.match(/\bproject\s*:?[\s]+([^,#]+?)(?=\s+#|$)/i);
+  const tagMatch = text.match(/#([a-z0-9_-]{1,24})/i);
+  if (projectMatch) {
+    const project = normalise(projectMatch[1]);
+    selected = selected.filter((task) => normalise(task.project || "Inbox") === project);
+    heading += ` in ${projectMatch[1].trim()}`;
   }
-
+  if (tagMatch) {
+    const tag = tagMatch[1].toLowerCase();
+    selected = selected.filter((task) => (task.tags || []).map((item) => String(item).toLowerCase()).includes(tag));
+    heading += ` tagged #${tag}`;
+  }
+  selected.sort((a, b) => Number(a.completed) - Number(b.completed) || new Date(a.dueDate || "9999-12-31") - new Date(b.dueDate || "9999-12-31"));
+  if (!selected.length) return say(`${heading}: none.`);
+  state.lastTask = selected[0]; saveState();
+  say(`${heading} (${selected.length}):\n${selected.slice(0, 10).map((task, index) => `${index + 1}. ${task.completed ? "✓" : "•"} ${taskLabel(task)} [${task.priority || "medium"}]`).join("\n")}${selected.length > 10 ? `\n…and ${selected.length - 10} more.` : ""}`);
+}
+async function analyseTasks() {
+  const tasks = await getTasks(), pending = tasks.filter((task) => !task.completed), completed = tasks.length - pending.length;
+  const overdue = pending.filter((task) => task.dueDate && new Date(task.dueDate) < new Date()), high = pending.filter((task) => task.priority === "high");
+  const next = [...pending].sort((a, b) => Number(b.priority === "high") - Number(a.priority === "high") || new Date(a.dueDate || "9999-12-31") - new Date(b.dueDate || "9999-12-31"))[0];
+  state.lastTask = next || null; saveState();
+  say(`Task overview:\n• Total: ${tasks.length}\n• Completed: ${completed}\n• Open: ${pending.length}\n• Overdue: ${overdue.length}\n• High priority open: ${high.length}${next ? `\n\nBest next step: ${taskLabel(next)}.` : "\n\nYou have no open tasks — nice work."}`);
+}
+async function showReminders() {
   const now = new Date();
-
-  const overdue = tasks.filter(
-    (t) => t.dueDate && !t.completed && new Date(t.dueDate) < now
-  );
-
-  if (overdue.length) {
-    ai(
-      `Reminder: You have ${overdue.length} overdue task(s).  
-Start with "${overdue[0].name}".`
-    );
-    return;
+  const upcoming = (await getTasks())
+    .filter((task) => !task.completed && task.dueDate)
+    .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+  if (!upcoming.length) return say("You have no scheduled open tasks.");
+  const overdue = upcoming.filter((task) => new Date(task.dueDate) < now);
+  const next = upcoming.filter((task) => new Date(task.dueDate) >= now);
+  say(`${overdue.length ? `Overdue (${overdue.length}):\n${overdue.slice(0, 3).map((task) => `• ${taskLabel(task)}`).join("\n")}\n\n` : ""}Upcoming:\n${next.slice(0, 5).map((task) => `• ${taskLabel(task)}`).join("\n") || "None."}`);
+}
+async function snoozeTask(text) {
+  const minutes = Number(text.match(/\b(\d+)\s*(minute|min|hour|hr)s?\b/i)?.[1] || 10);
+  const isHour = /\b(hour|hr)s?\b/i.test(text);
+  const reference = text.replace(/^snooze\s+(the\s+)?(task\s+)?/i, "").replace(/\bfor\s+\d+\s*(minute|min|hour|hr)s?\b/i, "").trim();
+  const task = findTask(await getTasks(), reference);
+  if (!task) return say("I couldn't find that task. Example: snooze submit report for 30 minutes.");
+  const snoozedUntil = Date.now() + minutes * (isHour ? 60 : 1) * 60000;
+  await updateDoc(doc(db, "users", user.uid, "tasks", task.id), { snoozedUntil, notified: false, warned: false });
+  state.lastTask = { ...task, snoozedUntil }; saveState(); await refreshTaskUI();
+  say(`Snoozed ${taskLabel(task)} until ${new Date(snoozedUntil).toLocaleTimeString()}.`);
+}
+function showProfile() {
+  say(`Your Karya profile:\n• Name: ${user.displayName || "Not set"}\n• Email: ${user.email || "Not available"}`);
+}
+async function syncTasks() {
+  await refreshTaskUI();
+  say("Your Karya task list has been refreshed from Firestore.");
+}
+async function saveFeedback(text) {
+  const feedback = text.replace(/^(send )?(feedback|suggestion)\s*:?/i, "").trim();
+  if (!feedback) return say("Tell me the feedback you want to save, for example: feedback: reminders should be easier to see.");
+  await addDoc(collection(db, "users", user.uid, "feedback"), { text: feedback, createdAt: new Date().toISOString() });
+  say("Thanks — I saved your feedback.");
+}
+function setFocusMode(text) {
+  const enable = !/\b(off|disable|stop|exit)\b/i.test(text);
+  state.focusMode = enable; saveState();
+  if (enable) window.speechSynthesis?.cancel();
+  say(enable ? "Focus mode is on. I’ll keep replies brief and mute AI voice." : "Focus mode is off. Full Karya AI responses are back.");
+}
+async function setCompletion(text, completed) {
+  const task = findTask(await getTasks(), taskReference(text));
+  if (!task) return say("I couldn't identify one task. Say, for example: complete submit report.");
+  await updateDoc(doc(db, "users", user.uid, "tasks", task.id), { completed, status: completed ? "completed" : "open", notified: false, warned: false, updatedAt: new Date().toISOString() });
+  if (completed && task.recurrence && task.recurrence !== "none" && task.dueDate) {
+    const next = new Date(task.dueDate);
+    const days = task.recurrence === "weekly" ? 7 : 1;
+    do next.setDate(next.getDate() + days); while (next <= new Date());
+    await addDoc(collection(db, "users", user.uid, "tasks"), {
+      name: task.name, priority: task.priority || "medium", project: task.project || "Inbox", tags: task.tags || [],
+      status: "open", description: task.description || "", estimatedMinutes: Number(task.estimatedMinutes || 0),
+      subtasks: Array.isArray(task.subtasks) ? task.subtasks.map((subtask) => ({ ...subtask, completed: false })) : [],
+      recurrence: task.recurrence, dueDate: next.toISOString(), completed: false, notified: false, warned: false,
+      snoozedUntil: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+    });
   }
-  const overdueCount = tasks.filter(
-    (t) => !t.completed && new Date(t.dueDate) < new Date()
-  ).length;
-
-  if (overdueCount >= 3) {
-    behaviorMemory.procrastinationScore++;
-    saveBehaviorMemory();
-
-    ai(
-      "I’ve noticed some tasks are getting delayed. Want help breaking one into smaller steps?"
-    );
-    return;
-  }
-
-  const pending = tasks.filter((t) => !t.completed);
-
-  if (pending.length) {
-    aiContext.lastSuggestedTask = pending[0].name;
-    aiContext.lastDecision = {
-      action: "task-suggestion",
-      reason: "You have pending tasks and have been idle for a while.",
-      task: pending[0].name,
-    };
-
-    ai(`Next focus suggestion: "${pending[0].name}"`);
-  }
+  state.lastTask = { ...task, completed, status: completed ? "completed" : "open" }; saveState(); await refreshTaskUI(); say(`${completed ? "Completed" : "Reopened"} ${taskLabel(task)}.`);
 }
-//
-async function autonomousPriorityCheck() {
-  if (!user || aiContext.focusMode) return;
-
-  const snap = await getDocs(collection(db, "users", user.uid, "tasks"));
-  const tasks = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-
-  const now = new Date();
-
-  const overdue = tasks.find(
-    (t) =>
-      t.dueDate &&
-      !t.completed &&
-      new Date(t.dueDate) < now &&
-      t.priority !== "high"
-  );
-
-  if (!overdue) return;
-
-  aiContext.lastDecision = {
-    action: "priority-promotion",
-    reason: "The task is overdue and still not marked as high priority.",
-    task: overdue.name,
-  };
-
-  ai(
-    `Task "${overdue.name}" is overdue.\nDo you want me to mark it as HIGH priority?`
-  );
-
-  aiContext.pendingAutonomousAction = {
-    type: "promote-priority",
-    taskId: overdue.id,
-  };
+async function editTask(text) {
+  const tasks = await getTasks();
+  const renameInstruction = text.match(/^(?:rename|change)\s+(?:the\s+)?(?:task\s+)?(.+?)\s+(?:to|as|call it)\s+(.+)$/i);
+  const task = findTask(tasks, renameInstruction ? renameInstruction[1] : taskReference(text));
+  if (!task) return say("I couldn't find that task. Example: change submit report to high priority tomorrow at 5 pm.");
+  const updates = {}, priority = priorityFrom(text), dueDate = parseDate(text);
+  if (priority) updates.priority = priority; if (dueDate) Object.assign(updates, { dueDate, notified: false, warned: false }); if (renameInstruction) updates.name = renameInstruction[2].trim();
+  if (!Object.keys(updates).length) return say("Tell me what to change: priority, due date, or a new name.");
+  updates.updatedAt = new Date().toISOString();
+  await updateDoc(doc(db, "users", user.uid, "tasks", task.id), updates); state.lastTask = { ...task, ...updates }; saveState(); await refreshTaskUI(); say(`Updated ${taskLabel({ ...task, ...updates })}.`);
 }
-async function promoteTaskPriority(taskId) {
-  if (!user) return;
-
-  const ref = collection(db, "users", user.uid, "tasks");
-
-  const snap = await getDocs(ref);
-  const docRef = snap.docs.find((d) => d.id === taskId)?.ref;
-
-  if (!docRef) return;
-
-  await updateDoc(docRef, { priority: "high" });
-
-  ai(
-    `I marked the task as HIGH priority because it was overdue.\nThis helps prevent important work from being missed.`
-  );
+async function deleteTask(text) {
+  const task = findTask(await getTasks(), taskReference(text));
+  if (!task) return say("I couldn't find that task. Please say: delete followed by the task name.");
+  state.pendingConfirmation = { type: "delete", task }; say(`Delete ${taskLabel(task)}? Reply “yes” to confirm or “no” to cancel.`);
 }
-
-function predictNextTask(tasks) {
-  if (!tasks.length) return null;
-
-  const pending = tasks.filter((t) => !t.completed);
-  if (!pending.length) return null;
-
-  const high = pending.find((t) => t.priority === "high");
-  if (high) return high;
-
-  return pending.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))[0];
+async function resolveConfirmation(text) {
+  if (!state.pendingConfirmation) return false;
+  if (/^(no|cancel|stop|don'?t)\b/i.test(text)) { state.pendingConfirmation = null; say("Cancelled. Your task was not changed."); return true; }
+  if (!/^(yes|y|confirm|do it|go ahead|okay|ok)\b/i.test(text)) return false;
+  const action = state.pendingConfirmation; state.pendingConfirmation = null;
+  if (action.type === "delete") { await deleteDoc(doc(db, "users", user.uid, "tasks", action.task.id)); await refreshTaskUI(); say(`Deleted ${taskLabel(action.task)}.`); }
+  return true;
 }
-
-//
-async function morningPlanner() {
-  aiPersona.tone = "friendly";
-
-  if (!user || aiContext.focusMode) return;
-
-  const snap = await getDocs(collection(db, "users", user.uid, "tasks"));
-  const tasks = snap.docs.map((d) => d.data());
-
-  const today = new Date().toDateString();
-
-  const todayTasks = tasks.filter(
-    (t) =>
-      t.dueDate && new Date(t.dueDate).toDateString() === today && !t.completed
-  );
-
-  if (!todayTasks.length) {
-    ai("Daily plan: No tasks scheduled for today. Want to add one?");
-    return;
-  }
-
-  const high = todayTasks.find((t) => t.priority === "high");
-  aiContext.lastDecision = {
-    action: "morning-plan",
-    reason: "It is morning and you have tasks scheduled for today.",
-  };
-
-  ai(
-    `Daily plan ready:
-• Tasks today: ${todayTasks.length}
-• Priority focus: "${(high || todayTasks[0]).name}"`
-  );
+function setTaskView(text) {
+  const sort = document.getElementById("sortSelect"); if (!sort) return say("Task sorting is not available on this page.");
+  sort.value = /priority/i.test(text) ? "priority" : /due|date|deadline/i.test(text) ? "due" : /completed|done/i.test(text) ? "completed" : "default";
+  sort.dispatchEvent(new Event("change")); say("Updated the task view.");
 }
-
-function typeText(element, text) {
-  return new Promise((resolve) => {
-    let i = 0;
-    const speed = 18;
-
-    function type() {
-      if (i < text.length) {
-        element.textContent += text.charAt(i);
-        i++;
-        messagesEl.scrollTop = messagesEl.scrollHeight;
-        setTimeout(type, speed);
-      } else {
-        resolve();
-      }
+function changeTheme(text) {
+  const dark = /dark/i.test(text), light = /light/i.test(text); if (!dark && !light) return say("Say “switch to dark mode” or “switch to light mode”.");
+  document.body.classList.toggle("dark", dark); document.body.classList.toggle("light", light); localStorage.setItem("theme", dark ? "dark" : "light");
+  const toggle = document.getElementById("themeToggle"); if (toggle) toggle.checked = dark; say(`Switched to ${dark ? "dark" : "light"} theme.`);
+}
+function help() { say("I work directly with your Karya tasks. Try:\n• Add finish proposal tomorrow at 5 pm, high priority\n• Add standup daily at 9 am project: Work\n• Add gym tomorrow #health project: Personal\n• Show my overdue tasks\n• Complete finish proposal\n• Change finish proposal to low priority\n• Delete finish proposal\n• Analyse my tasks\n• What should I do next?"); }
+function appAnswer(text) {
+  if (/offline/i.test(text)) return "Enable Offline Task Cache in Settings on a trusted device to keep task data available without internet. Changes sync to Firestore when your connection returns.";
+  if (/reminder|notification/i.test(text)) return "Karya checks due tasks while the app is open. Allow browser notifications so it can alert you before a deadline and when a task is overdue.";
+  if (/priority|due date|deadline/i.test(text)) return "Every task can have low, medium, or high priority and an optional due date. You can set both in the form or say: add a task tomorrow at 5 pm, high priority.";
+  if (/install|pwa|home screen/i.test(text)) return "Karya is installable as a web app when your browser shows its install option. On mobile, use your browser menu's Add to Home Screen option.";
+  if (/ai|assistant|voice/i.test(text)) return "Karya AI reads and manages only the signed-in user's Karya tasks. Built-in commands work without a model; Advanced AI asks permission before sending limited context to Gemini.";
+  if (/setting|theme|sound|export|analytics/i.test(text)) return "Open Settings from your profile menu to view analytics, export tasks, set the theme colour, choose reminder sounds, or clear your tasks.";
+  return "Karya is a task manager with priorities, due dates, reminders, analytics, cloud-synced tasks, and this task-aware assistant.";
+}
+async function handleMessage(text) {
+  if (await resolveConfirmation(text)) return; const lower = text.toLowerCase().trim();
+  if (state.pendingGeminiQuestion) {
+    if (/^(yes|y|allow|agree)\b/i.test(lower)) {
+      const question = state.pendingGeminiQuestion;
+      state.pendingGeminiQuestion = null;
+      localStorage.setItem(`karya_gemini_consent_${user.uid}`, "allowed");
+      return askGemini(question);
     }
-    type();
-  });
-}
-function speak(text) {
-  if (!speechEnabled) return;
-  if (!("speechSynthesis" in window)) return;
-  if (aiContext.focusMode) return;
-
-  const chunks = text.match(/[^.!?]+[.!?]?/g) || [text];
-  chunks.forEach((c) => speechQueue.push(c.trim()));
-
-  processSpeechQueue();
-}
-
-function normalizeAIReply(text) {
-  if (!text) return "";
-
-  text = text.replace(/(definitely|absolutely|guaranteed|always)/gi, "usually");
-
-  if (text.length > 700) {
-    text = text.slice(0, 700) + "...";
-  }
-
-  return text.trim();
-}
-function addConfidenceDisclaimer(reply, confidence = 0.6) {
-  if (confidence < 0.5) {
-    return `I might be mistaken, but here’s my best suggestion:\n${reply}`;
-  }
-  return reply;
-}
-
-function processSpeechQueue() {
-  if (isSpeaking || speechQueue.length === 0) return;
-
-  isSpeaking = true;
-  const text = speechQueue.shift();
-
-  const utter = new SpeechSynthesisUtterance(text);
-  utter.lang = "en-US";
-  utter.rate = 1;
-  utter.pitch = 1.1;
-  utter.volume = 1;
-
-  utter.onend = () => {
-    isSpeaking = false;
-    processSpeechQueue();
-  };
-
-  utter.onerror = () => {
-    isSpeaking = false;
-    processSpeechQueue();
-  };
-
-  window.speechSynthesis.speak(utter);
-}
-
-//
-function saveAiMemory() {
-  localStorage.setItem("karya_ai_memory", JSON.stringify(aiMemory));
-}
-//
-function isMorning() {
-  const h = new Date().getHours();
-  return h >= 6 && h < 11;
-}
-function isEvening() {
-  const h = new Date().getHours();
-  return h >= 20 && h <= 23;
-}
-async function endOfDayReview() {
-  if (!user || aiContext.focusMode) return;
-
-  const snap = await getDocs(collection(db, "users", user.uid, "tasks"));
-  const tasks = snap.docs.map((d) => d.data());
-
-  const today = new Date().toDateString();
-
-  const todayTasks = tasks.filter(
-    (t) => t.dueDate && new Date(t.dueDate).toDateString() === today
-  );
-
-  if (!todayTasks.length) return;
-
-  const done = todayTasks.filter((t) => t.completed).length;
-
-  ai(
-    `Day summary:
-• Completed: ${done}/${todayTasks.length}
-• Progress matters more than perfection`
-  );
-}
-function isNewWeek() {
-  const last = localStorage.getItem("karya_week_report");
-  const now = new Date();
-  const week = `${now.getFullYear()}-${now.getMonth()}-${Math.floor(
-    now.getDate() / 7
-  )}`;
-
-  if (last !== week) {
-    localStorage.setItem("karya_week_report", week);
-    return true;
-  }
-  return false;
-}
-
-async function weeklyReport() {
-  if (!user) return;
-
-  const snap = await getDocs(collection(db, "users", user.uid, "tasks"));
-  const tasks = snap.docs.map((d) => d.data());
-
-  const completed = tasks.filter((t) => t.completed).length;
-  const total = tasks.length;
-
-  ai(
-    `Weekly report:
-• Tasks completed: ${completed}
-• Completion rate: ${Math.round((completed / (total || 1)) * 100)}%
-• Keep building consistency`
-  );
-}
-
-function queueOfflineAction(action) {
-  const queue = JSON.parse(localStorage.getItem("karya_pending_actions")) || [];
-
-  queue.push({
-    ...action,
-    createdAt: Date.now(),
-  });
-
-  localStorage.setItem("karya_pending_actions", JSON.stringify(queue));
-}
-async function syncPendingActions() {
-  if (!user) return;
-
-  const queue = JSON.parse(localStorage.getItem("karya_pending_actions")) || [];
-
-  if (!queue.length) return;
-
-  for (const action of queue) {
-    if (action.type === "addTask") {
-      await addDoc(collection(db, "users", user.uid, "tasks"), {
-        name: action.payload.name,
-        dueDate: action.payload.dueDate,
-        priority: action.payload.priority,
-        completed: false,
-        createdAt: action.payload.createdAt || new Date().toISOString(),
-      });
+    if (/^(no|n|cancel|decline)\b/i.test(lower)) {
+      state.pendingGeminiQuestion = null;
+      return say("No problem. I will keep your task data in Karya and use only built-in task commands.");
     }
+    return say("Reply “yes” to use Advanced AI for your original question, or “no” to cancel.");
   }
-
-  localStorage.removeItem("karya_pending_actions");
-  ai("All offline tasks synced successfully.");
+  if (/^(help|what can you do|commands)\??$/i.test(lower)) return help();
+  if (/\b(focus mode|deep work)\b/i.test(lower)) return setFocusMode(lower);
+  if (/\b(show (my )?profile|who am i|my profile)\b/i.test(lower)) return showProfile();
+  if (/\b(sync|refresh|reload) (my )?tasks?\b/i.test(lower)) return syncTasks();
+  if (/^(send )?(feedback|suggestion)\b/i.test(lower)) return saveFeedback(text);
+  if (/\b(what is karya|about karya|how does karya|settings|offline|reminder|notification|export|priority|due date|deadline|install|pwa|home screen|karya ai)\b/i.test(lower)) return say(appAnswer(lower));
+  if (/\b(analyse|analyze|summary|statistics|stats|productivity|what should i do|what.?s next|suggest.*task|next task)\b/i.test(lower)) return analyseTasks();
+  if (/^snooze\b/i.test(lower)) return snoozeTask(text);
+  if (/^(add|create|schedule|plan|remind me to)\b/i.test(lower)) return addTask(text);
+  if (/\b(delete|remove|trash)\b/i.test(lower)) return deleteTask(text);
+  if (/^(complete|finish|mark|done)\b/i.test(lower) || /\bmark .+ (done|complete)\b/i.test(lower)) return setCompletion(text, true);
+  if (/^(reopen|undo|uncomplete)\b/i.test(lower)) return setCompletion(text, false);
+  if (/^(edit|update|change|rename)\b/i.test(lower)) return editTask(text);
+  if (/\b(sort|filter|reorder)\b/i.test(lower)) return setTaskView(text);
+  if (/\b(dark mode|light mode|change theme|switch theme)\b/i.test(lower)) return changeTheme(text);
+  if (/\b(show|list|my tasks|tasks due|completed tasks|pending tasks|overdue)\b/i.test(lower)) return listTasks(text);
+  if (/\b(hi|hello|hey)\b/i.test(lower)) return say("Hi — I’m ready to manage your Karya tasks. Say “help” for examples.");
+  if (currentAction === "smart-add") return addTask(text);
+  if (!hasGeminiConsent()) {
+    state.pendingGeminiQuestion = text;
+    return say("Advanced AI can answer this question using Gemini. It sends a short chat window and up to 12 relevant task summaries to Google. Reply “yes” to continue or “no” to keep this data in Karya.");
+  }
+  return askGemini(text);
 }
-
-function startIntelligence() {
-  if (intelligenceStarted) return;
-  intelligenceStarted = true;
-
-  setInterval(() => {
-    if (isMorning() && !morningDone) {
-      morningPlanner();
-      morningDone = true;
-      localStorage.setItem("karya_morning_done", true);
-    }
-
-    if (!isMorning()) {
-      morningDone = false;
-      localStorage.setItem("karya_morning_done", false);
-    }
-  }, 60000);
-  let nightDone = JSON.parse(localStorage.getItem("karya_night_done")) || false;
-
-  setInterval(() => {
-    if (isEvening() && !nightDone) {
-      endOfDayReview();
-      nightDone = true;
-      localStorage.setItem("karya_night_done", true);
-    }
-
-    if (!isEvening()) {
-      nightDone = false;
-      localStorage.setItem("karya_night_done", false);
-    }
-  }, 60000);
-  setInterval(() => {
-    if (isNewWeek()) {
-      weeklyReport();
-    }
-  }, 3600000);
-  setInterval(async () => {
-    if (aiContext.focusMode) return;
-    if (proactiveCooldown) return;
-
-    const idleTime = Date.now() - lastUserActivity;
-
-    if (idleTime > 90000) {
-      proactiveCooldown = true;
-      await proactiveCheck();
-      await autonomousPriorityCheck();
-      setTimeout(() => (proactiveCooldown = false), 120000);
-    }
-
-    const activeHour = getMostActiveHour();
-    if (
-      activeHour !== null &&
-      Math.abs(activeHour - new Date().getHours()) <= 1 &&
-      idleTime > 60000
-    ) {
-      ai("Quick check-in: ready to make some progress?");
-    }
-  }, 15000);
+async function send() {
+  if (processing) return; const text = el.input.value.trim(); if (!text) return; if (!user) return say("Please sign in before using Karya AI.");
+  processing = true; el.send.disabled = true; el.input.value = ""; sayUser(text);
+  try { await handleMessage(text); } catch (error) { console.error("Karya AI task action failed:", error); say("I couldn't complete that task action. Check your internet connection and try again."); } finally { processing = false; el.send.disabled = false; }
 }
-function updatePersonaFromBehavior() {
-  const idleTime = Date.now() - lastUserActivity;
-
-  if (aiContext.focusMode) {
-    aiPersona.tone = "strict";
-  } else if (idleTime > 10 * 60 * 1000) {
-    aiPersona.tone = "motivational";
-    aiPersona.productivityLevel = "low";
-  } else {
-    aiPersona.tone = "calm";
-    aiPersona.productivityLevel = "normal";
-  }
-
-  aiPersona.lastInteraction = Date.now();
+function openPanel() { el.panel.classList.add("open"); el.panel.setAttribute("aria-hidden", "false"); if (!el.messages.children.length) say("I’m Karya AI. I can read and manage your actual Karya tasks. What would you like to do?"); el.input.focus(); }
+function closePanel() { el.panel.classList.remove("open"); el.panel.setAttribute("aria-hidden", "true"); if (listening && recognition) recognition.stop(); }
+function startVoice() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition; if (!SpeechRecognition) return say("Voice input is not supported in this browser.");
+  if (!recognition) { recognition = new SpeechRecognition(); recognition.lang = "en-US"; recognition.interimResults = false; recognition.onresult = (event) => { el.input.value = event.results[0][0].transcript; send(); }; recognition.onend = () => { listening = false; el.voice.classList.remove("listening"); }; recognition.onerror = () => say("I couldn't hear that. Please try again or type your request."); }
+  if (listening) return recognition.stop(); listening = true; el.voice.classList.add("listening"); recognition.start();
 }
-function applyPersonaTone(text) {
-  switch (aiPersona.tone) {
-    case "strict":
-      return text + "\nStay focused.";
-    case "motivational":
-      return text + "\nYou’re capable. Keep going.";
-    case "friendly":
-      return text;
-    case "calm":
-    default:
-      return text;
-  }
-}
-
-async function syncOfflineTasks() {
-  if (!user || !navigator.onLine || !offlineQueue.length) return;
-
-  for (const task of offlineQueue) {
-    try {
-      await addDoc(collection(db, "users", user.uid, "tasks"), task);
-    } catch (e) {
-      console.error("Sync failed:", e);
-      return;
-    }
-  }
-
-  offlineQueue = [];
-  saveOfflineQueue();
-  ai("Offline tasks synced successfully.");
-}
-
-function updateContextFromText(text) {
-  const t = text.toLowerCase();
-
-  if (t.includes("i want to") || t.includes("my goal")) {
-    aiContext.goal = text;
-  }
-
-  if (t.includes("today") && (t.includes("finish") || t.includes("complete"))) {
-    aiContext.goal = text;
-  }
-
-  if (/stress|overwhelm|tired|burnout/.test(t)) aiContext.mood = "stressed";
-  else if (/sad|down|depressed/.test(t)) aiContext.mood = "sad";
-  else if (/happy|excited|great/.test(t)) aiContext.mood = "positive";
-  else aiContext.mood = "neutral";
-  const taskMatch = text.match(/add (.+)/i);
-  if (taskMatch) {
-    aiContext.lastTaskMentioned = taskMatch[1];
-  }
-  const hour = new Date().getHours();
-
-  if (hour >= 5 && hour < 12) aiMemory.activeTime = "morning";
-  else if (hour >= 12 && hour < 18) aiMemory.activeTime = "afternoon";
-  else aiMemory.activeTime = "night";
-
-  saveAiMemory();
-}
+el.button?.addEventListener("click", openPanel); el.close?.addEventListener("click", closePanel); el.send?.addEventListener("click", send);
+el.input?.addEventListener("keydown", (event) => { if (event.key === "Enter") send(); });
+el.newChat?.addEventListener("click", () => { el.messages.innerHTML = ""; history = []; localStorage.removeItem(`${HISTORY_KEY}_${user?.uid || "anon"}`); state.pendingConfirmation = null; say("New chat started. What can I do with your tasks?"); });
+el.history?.addEventListener("click", () => { const recent = history.slice(-8); system(recent.length ? recent.map((item) => `${item.type === "user" ? "You" : "AI"}: ${item.text}`).join("\n") : "No chat history yet."); });
+el.voice?.addEventListener("click", startVoice);
+el.speech?.addEventListener("click", () => { speechEnabled = !speechEnabled; localStorage.setItem(aiPreferenceKey("speech"), speechEnabled ? "on" : "off"); el.speech.textContent = speechEnabled ? "🔊" : "🔇"; if (!speechEnabled) window.speechSynthesis?.cancel(); system(`AI voice ${speechEnabled ? "enabled" : "muted"}.`); });
+el.actionButtons.forEach((button) => button.addEventListener("click", () => { el.actionButtons.forEach((item) => item.classList.remove("active")); button.classList.add("active"); currentAction = button.dataset.action; if (currentAction === "analyse") analyseTasks().catch(console.error); if (currentAction === "reminders") showReminders().catch(console.error); }));
+onAuthStateChanged(auth, (nextUser) => { user = nextUser || null; loadState(); });

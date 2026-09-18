@@ -1,36 +1,22 @@
-const GEMINI_API_KEY = "AIzaSyChYIG9eDuNFa84BYsBxuR-l8DRoJcP_Yk";
+// Browser-side connector for the protected Gemini fallback. This file contains
+// no provider key; the key stays in the Netlify Function environment.
+export async function onlineBrain({ question, token, tasks, history, preferences, signal }) {
+  const response = await fetch("/.netlify/functions/karya-ai", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    signal,
+    body: JSON.stringify({ question, tasks, history, preferences }),
+  });
 
-export async function onlineBrain(prompt) {
-  try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${
-        AIzaSyChYIG9eDuNFa84BYsBxuR - l8DRoJcP_Yk
-      }`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [{ text: prompt }],
-            },
-          ],
-        }),
-      }
-    );
-
-    const data = await res.json();
-
-    const reply =
-      data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-      "I couldn’t generate a response.";
-
-    return { reply };
-  } catch (err) {
-    console.error("Online AI error:", err);
-    return {
-      reply:
-        "I had trouble reaching advanced intelligence. Please try again later.",
-    };
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error || "Advanced Karya AI is unavailable.");
   }
+  if (!data.reply || typeof data.reply !== "string") {
+    throw new Error("Advanced Karya AI returned an invalid response.");
+  }
+  return data.reply;
 }
