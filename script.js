@@ -1,4 +1,5 @@
 import { auth, db } from "./firebase.js";
+import { dateSortValue, nextRecurringDueDate, normaliseTags, toTaskDate } from "./task-utils.js";
 import {
   signOut,
   onAuthStateChanged,
@@ -13,6 +14,7 @@ import {
   query,
   onSnapshot,
   serverTimestamp,
+  writeBatch,
 } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
 
 // DOM Elements
@@ -82,31 +84,8 @@ function escapeHtml(value) {
     .replace(/'/g, "&#039;");
 }
 
-function normaliseTags(value) {
-  return [...new Set(
-    String(value || "")
-      .split(",")
-      .map((tag) => tag.trim().replace(/^#/, "").toLowerCase())
-      .filter((tag) => tag && tag.length <= 24)
-  )].slice(0, 8);
-}
-
 function createSubtaskId() {
   return globalThis.crypto?.randomUUID?.() || `subtask-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function formatLocalDateTime(date) {
-  const offset = date.getTimezoneOffset() * 60000;
-  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
-}
-
-function nextRecurringDueDate(task) {
-  const next = new Date(task.dueDate);
-  if (Number.isNaN(next.getTime())) return null;
-  const interval = task.recurrence === "weekly" ? 7 : 1;
-  do next.setDate(next.getDate() + interval);
-  while (next <= new Date());
-  return formatLocalDateTime(next);
 }
 
 function recurringTaskFrom(task, dueDate) {
@@ -229,6 +208,25 @@ async function updateTaskInFirestore(taskId, updatedFields) {
   });
 }
 
+async function setTaskCompletion(task, completed) {
+  const batch = writeBatch(db);
+  batch.update(doc(db, "users", user.uid, "tasks", task.id), {
+    completed,
+    status: completed ? "completed" : "open",
+    notified: false,
+    warned: false,
+    updatedAt: serverTimestamp(),
+  });
+  const nextDueDate = completed ? nextRecurringDueDate(task) : null;
+  if (nextDueDate) {
+    batch.set(
+      doc(collection(db, "users", user.uid, "tasks")),
+      recurringTaskFrom(task, nextDueDate)
+    );
+  }
+  await batch.commit();
+}
+
 // Delete Task
 async function deleteTaskFromFirestore(taskId) {
   await deleteDoc(doc(db, "users", user.uid, "tasks", taskId));
@@ -242,9 +240,7 @@ function getSortedTasks() {
 
   switch (method) {
     case "due":
-      return taskCopy.sort(
-        (a, b) => new Date(a.dueDate || 0) - new Date(b.dueDate || 0)
-      );
+      return taskCopy.sort((a, b) => dateSortValue(a.dueDate) - dateSortValue(b.dueDate));
     case "priority":
       return taskCopy.sort(
         (a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]
@@ -272,7 +268,7 @@ function renderTaskOverview() {
   if (openTaskCount) openTaskCount.textContent = open.length;
   if (todayTaskCount) {
     todayTaskCount.textContent = open.filter(
-      (task) => task.dueDate && new Date(task.dueDate).toDateString() === today
+      (task) => toTaskDate(task.dueDate)?.toDateString() === today
     ).length;
   }
   if (completedTaskCount) completedTaskCount.textContent = tasks.length - open.length;
@@ -297,8 +293,9 @@ function renderTasks() {
     if (activeProject !== "all" && (task.project || "Inbox") !== activeProject) return false;
     if (activeView === "open" && task.completed) return false;
     if (activeView === "completed" && !task.completed) return false;
-    if (activeView === "today" && (!task.dueDate || new Date(task.dueDate).toDateString() !== today)) return false;
-    if (activeView === "overdue" && (task.completed || !task.dueDate || new Date(task.dueDate) >= now)) return false;
+    const dueDate = toTaskDate(task.dueDate);
+    if (activeView === "today" && dueDate?.toDateString() !== today) return false;
+    if (activeView === "overdue" && (task.completed || !dueDate || dueDate >= now)) return false;
     return true;
   });
 
@@ -320,7 +317,7 @@ function renderTasks() {
           <span class="task-priority priority-${escapeHtml(task.priority)}">${escapeHtml(task.priority)}</span>
         </div>
         <div class="task-meta">
-          ${task.dueDate ? `<small>🕒 ${escapeHtml(new Date(task.dueDate).toLocaleString())}</small>` : '<small class="no-due-date">No deadline</small>'}
+          ${toTaskDate(task.dueDate) ? `<small>🕒 ${escapeHtml(toTaskDate(task.dueDate).toLocaleString())}</small>` : '<small class="no-due-date">No deadline</small>'}
           <small class="task-project">📁 ${escapeHtml(task.project || "Inbox")}</small>
           ${(task.tags || []).map((tag) => `<small class="task-tag">#${escapeHtml(tag)}</small>`).join("")}
           ${task.recurrence && task.recurrence !== "none" ? `<small class="task-repeat">↻ ${escapeHtml(task.recurrence)}</small>` : ""}
@@ -338,14 +335,7 @@ function renderTasks() {
       const doneButton = event.currentTarget;
       doneButton.disabled = true;
       try {
-        await updateTaskInFirestore(task.id, {
-          completed: !task.completed,
-          status: task.completed ? "open" : "completed",
-        });
-        if (!task.completed && task.recurrence && task.recurrence !== "none") {
-          const nextDueDate = nextRecurringDueDate(task);
-          if (nextDueDate) await saveTaskToFirestore(recurringTaskFrom(task, nextDueDate));
-        }
+        await setTaskCompletion(task, !task.completed);
       } catch (error) {
         console.error("Task update failed:", error);
         alert("Couldn't update this task. Please try again.");
@@ -579,11 +569,12 @@ function showUndoSnackbar() {
 
 // Voice Input
 voiceBtn?.addEventListener("click", () => {
-  if (!("webkitSpeechRecognition" in window)) {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
     alert("Speech recognition not supported.");
     return;
   }
-  const recognition = new webkitSpeechRecognition();
+  const recognition = new SpeechRecognition();
   recognition.lang = "en-US";
   recognition.start();
   recognition.onresult = (e) => {
@@ -676,11 +667,11 @@ if ("serviceWorker" in navigator) {
     .catch((e) => console.error("SW Error:", e));
 }
 //  Run Reminder Check Every Minute
-setInterval(checkDueReminders, 60000);
-checkDueReminders(); // Run immediately after page load
+setInterval(() => checkDueReminders().catch((error) => console.error("Reminder check failed:", error)), 60000);
+checkDueReminders().catch((error) => console.error("Reminder check failed:", error));
 
 //  Updated Reminder Check with LocalStorage Sound Selection
-function checkDueReminders() {
+async function checkDueReminders() {
   if (!("Notification" in window)) return;
 
   if (Notification.permission !== "granted") {
@@ -689,13 +680,14 @@ function checkDueReminders() {
 
   const now = Date.now();
 
-  tasks.forEach(async (task) => {
-    if (!task.dueDate || task.completed) return;
+  for (const task of tasks) {
+    if (!task.dueDate || task.completed) continue;
 
-    const due = new Date(task.dueDate).getTime();
+    const due = toTaskDate(task.dueDate)?.getTime();
+    if (!due) continue;
 
     //  Snoozed
-    if (task.snoozedUntil && now < task.snoozedUntil) return;
+    if (task.snoozedUntil && now < task.snoozedUntil) continue;
 
     const diff = due - now;
 
@@ -706,10 +698,13 @@ function checkDueReminders() {
         `"${task.name}" is due in 10 minutes`
       );
 
-      task.warned = true;
-      await updateTaskInFirestore(task.id, { warned: true });
-      playSound();
-      return;
+      try {
+        await updateTaskInFirestore(task.id, { warned: true });
+        playSound();
+      } catch (error) {
+        console.error("Reminder warning update failed:", error);
+      }
+      continue;
     }
 
     /* ---------- DUE NOW ---------- */
@@ -719,21 +714,27 @@ function checkDueReminders() {
         `"${task.name}" needs your attention`
       );
 
-      task.notified = true;
-      await updateTaskInFirestore(task.id, { notified: true });
-      playSound();
-      return;
+      try {
+        await updateTaskInFirestore(task.id, { notified: true });
+        playSound();
+      } catch (error) {
+        console.error("Due reminder update failed:", error);
+      }
+      continue;
     }
 
     /* ---------- MISSED TASK ---------- */
     if (diff < -10 * 60000 && !task.notified) {
       sendNotification(`⚠️ Missed Task`, `"${task.name}" is overdue`);
 
-      task.notified = true;
-      await updateTaskInFirestore(task.id, { notified: true });
-      playSound();
+      try {
+        await updateTaskInFirestore(task.id, { notified: true });
+        playSound();
+      } catch (error) {
+        console.error("Overdue reminder update failed:", error);
+      }
     }
-  });
+  }
 }
 function sendNotification(title, body) {
   new Notification(title, { body });

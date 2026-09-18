@@ -1,0 +1,9 @@
+{
+  "name": "karya-task-manager",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node tests/run-tests.mjs",
+    "test:system": "node tests/run-tests.mjs"
+  }
+}

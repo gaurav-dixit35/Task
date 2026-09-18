@@ -125,8 +125,9 @@ clearTasksBtn?.addEventListener("click", async () => {
 loadAnalyticsBtn?.addEventListener("click", () => {
   const stats = {};
   tasks.forEach((task) => {
-    const date = task.dueDate
-      ? new Date(task.dueDate).toLocaleDateString()
+    const parsedDueDate = task.dueDate && (typeof task.dueDate.toDate === "function" ? task.dueDate.toDate() : new Date(task.dueDate));
+    const date = parsedDueDate && !Number.isNaN(parsedDueDate.getTime())
+      ? parsedDueDate.toLocaleDateString()
       : "No Due Date";
     if (!stats[date]) stats[date] = { completed: 0, pending: 0 };
     task.completed ? stats[date].completed++ : stats[date].pending++;
@@ -146,6 +147,11 @@ function renderTasksChart(stats) {
 
   const canvas = document.getElementById("tasksChart");
   if (!canvas) return;
+
+  if (typeof Chart === "undefined") {
+    analyticsOutput.textContent += "\n\nChart is unavailable offline; the written summary above is still complete.";
+    return;
+  }
 
   if (tasksChart) tasksChart.destroy();
 
@@ -216,8 +222,11 @@ function downloadFile(url, filename) {
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
+  a.style.display = "none";
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 themeColorPicker?.addEventListener("input", (e) => {

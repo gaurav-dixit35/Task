@@ -130,12 +130,15 @@ service-worker.js                PWA cache and offline shell
 Run these checks before deploying changes:
 
 ```bash
+npm test
 node --check script.js
 node --check set.js
 node --check Karyaai/ai.js
 node --check netlify/functions/karya-ai.mjs
 git diff --check
 ```
+
+`npm test` is dependency-free and covers task-date handling, recurrence logic, tag validation, page-to-script element contracts, service-worker cache assets, protected-function authentication guards, merge-marker detection, CSS structure, and Firestore security-rule contracts.
 
 ## Production checklist
 

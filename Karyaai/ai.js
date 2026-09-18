@@ -1,8 +1,9 @@
 import { auth, db } from "../firebase.js";
 import { onlineBrain } from "./online-brain.js";
 import { karyaBrain } from "./ai-brain.js";
+import { dateSortValue, nextRecurringDueDate, toTaskDate } from "../task-utils.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js";
-import { addDoc, collection, deleteDoc, doc, getDocs, updateDoc } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
+import { addDoc, collection, deleteDoc, doc, getDocs, updateDoc, writeBatch } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
 
 // Karya AI is task-first: it reads and changes the signed-in user's Firestore
 // tasks. It does not use an exposed browser API key or claim to be trained.
@@ -58,7 +59,7 @@ function selectTaskContext(tasks) {
     .sort((a, b) =>
       Number(Boolean(a.completed)) - Number(Boolean(b.completed)) ||
       Number(b.priority === "high") - Number(a.priority === "high") ||
-      new Date(a.dueDate || "9999-12-31") - new Date(b.dueDate || "9999-12-31")
+      dateSortValue(a.dueDate) - dateSortValue(b.dueDate)
     )
     .slice(0, 12);
 }
@@ -141,7 +142,7 @@ async function localAssistantAnswer(question, prefix = "") {
   }
 }
 function normalise(value) { return String(value || "").toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim(); }
-function formatDate(value) { const date = new Date(value); return Number.isNaN(date.getTime()) ? "no due date" : date.toLocaleString(); }
+function formatDate(value) { return toTaskDate(value)?.toLocaleString() || "no due date"; }
 function taskLabel(task) { return `“${task.name}”${task.dueDate ? ` — ${formatDate(task.dueDate)}` : ""}`; }
 function priorityFrom(text) {
   if (/\b(high|urgent|asap|critical|important)\b/i.test(text)) return "high";
@@ -200,7 +201,7 @@ function titleFromAdd(text) {
 function findTask(tasks, requested) {
   const needle = normalise(requested);
   if ((!needle || /^(it|that|this|last task)$/.test(needle)) && state.lastTask) return tasks.find((task) => task.id === state.lastTask.id);
-  if (/^(first|next) task$/.test(needle)) return tasks.filter((task) => !task.completed).sort((a, b) => new Date(a.dueDate || "9999-12-31") - new Date(b.dueDate || "9999-12-31"))[0] || null;
+  if (/^(first|next) task$/.test(needle)) return tasks.filter((task) => !task.completed).sort((a, b) => dateSortValue(a.dueDate) - dateSortValue(b.dueDate))[0] || null;
   if (/^last task$/.test(needle)) return tasks[tasks.length - 1] || null;
   const exact = tasks.find((task) => normalise(task.name) === needle); if (exact) return exact;
   const matches = tasks.map((task) => {
@@ -216,7 +217,7 @@ function taskReference(text) {
     .replace(/\b(due\s+)?(today|tomorrow|day after tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|at\s+\d{1,2}.*)$/i, "").trim();
 }
 async function addTask(text) {
-  const title = titleFromAdd(text);
+  const title = titleFromAdd(text).slice(0, 240);
   if (!title) return say("What should I add? Example: Add submit report tomorrow at 5 pm, high priority.");
   const task = {
     name: title,
@@ -244,9 +245,9 @@ async function listTasks(text) {
   const tasks = await getTasks(), now = new Date(); let selected = tasks, heading = "Your tasks";
   if (/completed|done|finished/i.test(text)) { selected = tasks.filter((task) => task.completed); heading = "Completed tasks"; }
   else if (/pending|open|incomplete|not done/i.test(text)) { selected = tasks.filter((task) => !task.completed); heading = "Open tasks"; }
-  else if (/overdue|late|missed/i.test(text)) { selected = tasks.filter((task) => !task.completed && task.dueDate && new Date(task.dueDate) < now); heading = "Overdue tasks"; }
-  else if (/today/i.test(text)) { selected = tasks.filter((task) => task.dueDate && new Date(task.dueDate).toDateString() === now.toDateString()); heading = "Tasks due today"; }
-  else if (/tomorrow/i.test(text)) { const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1); selected = tasks.filter((task) => task.dueDate && new Date(task.dueDate).toDateString() === tomorrow.toDateString()); heading = "Tasks due tomorrow"; }
+  else if (/overdue|late|missed/i.test(text)) { selected = tasks.filter((task) => !task.completed && toTaskDate(task.dueDate) && toTaskDate(task.dueDate) < now); heading = "Overdue tasks"; }
+  else if (/today/i.test(text)) { selected = tasks.filter((task) => toTaskDate(task.dueDate)?.toDateString() === now.toDateString()); heading = "Tasks due today"; }
+  else if (/tomorrow/i.test(text)) { const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1); selected = tasks.filter((task) => toTaskDate(task.dueDate)?.toDateString() === tomorrow.toDateString()); heading = "Tasks due tomorrow"; }
   const projectMatch = text.match(/\bproject\s*:?[\s]+([^,#]+?)(?=\s+#|$)/i);
   const tagMatch = text.match(/#([a-z0-9_-]{1,24})/i);
   if (projectMatch) {
@@ -259,26 +260,26 @@ async function listTasks(text) {
     selected = selected.filter((task) => (task.tags || []).map((item) => String(item).toLowerCase()).includes(tag));
     heading += ` tagged #${tag}`;
   }
-  selected.sort((a, b) => Number(a.completed) - Number(b.completed) || new Date(a.dueDate || "9999-12-31") - new Date(b.dueDate || "9999-12-31"));
+  selected.sort((a, b) => Number(a.completed) - Number(b.completed) || dateSortValue(a.dueDate) - dateSortValue(b.dueDate));
   if (!selected.length) return say(`${heading}: none.`);
   state.lastTask = selected[0]; saveState();
   say(`${heading} (${selected.length}):\n${selected.slice(0, 10).map((task, index) => `${index + 1}. ${task.completed ? "✓" : "•"} ${taskLabel(task)} [${task.priority || "medium"}]`).join("\n")}${selected.length > 10 ? `\n…and ${selected.length - 10} more.` : ""}`);
 }
 async function analyseTasks() {
   const tasks = await getTasks(), pending = tasks.filter((task) => !task.completed), completed = tasks.length - pending.length;
-  const overdue = pending.filter((task) => task.dueDate && new Date(task.dueDate) < new Date()), high = pending.filter((task) => task.priority === "high");
-  const next = [...pending].sort((a, b) => Number(b.priority === "high") - Number(a.priority === "high") || new Date(a.dueDate || "9999-12-31") - new Date(b.dueDate || "9999-12-31"))[0];
+  const overdue = pending.filter((task) => toTaskDate(task.dueDate) && toTaskDate(task.dueDate) < new Date()), high = pending.filter((task) => task.priority === "high");
+  const next = [...pending].sort((a, b) => Number(b.priority === "high") - Number(a.priority === "high") || dateSortValue(a.dueDate) - dateSortValue(b.dueDate))[0];
   state.lastTask = next || null; saveState();
   say(`Task overview:\n• Total: ${tasks.length}\n• Completed: ${completed}\n• Open: ${pending.length}\n• Overdue: ${overdue.length}\n• High priority open: ${high.length}${next ? `\n\nBest next step: ${taskLabel(next)}.` : "\n\nYou have no open tasks — nice work."}`);
 }
 async function showReminders() {
   const now = new Date();
   const upcoming = (await getTasks())
-    .filter((task) => !task.completed && task.dueDate)
-    .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+    .filter((task) => !task.completed && toTaskDate(task.dueDate))
+    .sort((a, b) => dateSortValue(a.dueDate) - dateSortValue(b.dueDate));
   if (!upcoming.length) return say("You have no scheduled open tasks.");
-  const overdue = upcoming.filter((task) => new Date(task.dueDate) < now);
-  const next = upcoming.filter((task) => new Date(task.dueDate) >= now);
+  const overdue = upcoming.filter((task) => toTaskDate(task.dueDate) < now);
+  const next = upcoming.filter((task) => toTaskDate(task.dueDate) >= now);
   say(`${overdue.length ? `Overdue (${overdue.length}):\n${overdue.slice(0, 3).map((task) => `• ${taskLabel(task)}`).join("\n")}\n\n` : ""}Upcoming:\n${next.slice(0, 5).map((task) => `• ${taskLabel(task)}`).join("\n") || "None."}`);
 }
 async function snoozeTask(text) {
@@ -300,7 +301,7 @@ async function syncTasks() {
   say("Your Karya task list has been refreshed from Firestore.");
 }
 async function saveFeedback(text) {
-  const feedback = text.replace(/^(send )?(feedback|suggestion)\s*:?/i, "").trim();
+  const feedback = text.replace(/^(send )?(feedback|suggestion)\s*:?/i, "").trim().slice(0, 2000);
   if (!feedback) return say("Tell me the feedback you want to save, for example: feedback: reminders should be easier to see.");
   await addDoc(collection(db, "users", user.uid, "feedback"), { text: feedback, createdAt: new Date().toISOString() });
   say("Thanks — I saved your feedback.");
@@ -314,19 +315,19 @@ function setFocusMode(text) {
 async function setCompletion(text, completed) {
   const task = findTask(await getTasks(), taskReference(text));
   if (!task) return say("I couldn't identify one task. Say, for example: complete submit report.");
-  await updateDoc(doc(db, "users", user.uid, "tasks", task.id), { completed, status: completed ? "completed" : "open", notified: false, warned: false, updatedAt: new Date().toISOString() });
-  if (completed && task.recurrence && task.recurrence !== "none" && task.dueDate) {
-    const next = new Date(task.dueDate);
-    const days = task.recurrence === "weekly" ? 7 : 1;
-    do next.setDate(next.getDate() + days); while (next <= new Date());
-    await addDoc(collection(db, "users", user.uid, "tasks"), {
+  const nextDueDate = completed ? nextRecurringDueDate(task) : null;
+  const batch = writeBatch(db);
+  batch.update(doc(db, "users", user.uid, "tasks", task.id), { completed, status: completed ? "completed" : "open", notified: false, warned: false, updatedAt: new Date().toISOString() });
+  if (nextDueDate) {
+    batch.set(doc(collection(db, "users", user.uid, "tasks")), {
       name: task.name, priority: task.priority || "medium", project: task.project || "Inbox", tags: task.tags || [],
       status: "open", description: task.description || "", estimatedMinutes: Number(task.estimatedMinutes || 0),
       subtasks: Array.isArray(task.subtasks) ? task.subtasks.map((subtask) => ({ ...subtask, completed: false })) : [],
-      recurrence: task.recurrence, dueDate: next.toISOString(), completed: false, notified: false, warned: false,
+      recurrence: task.recurrence, dueDate: nextDueDate, completed: false, notified: false, warned: false,
       snoozedUntil: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
     });
   }
+  await batch.commit();
   state.lastTask = { ...task, completed, status: completed ? "completed" : "open" }; saveState(); await refreshTaskUI(); say(`${completed ? "Completed" : "Reopened"} ${taskLabel(task)}.`);
 }
 async function editTask(text) {
@@ -335,7 +336,7 @@ async function editTask(text) {
   const task = findTask(tasks, renameInstruction ? renameInstruction[1] : taskReference(text));
   if (!task) return say("I couldn't find that task. Example: change submit report to high priority tomorrow at 5 pm.");
   const updates = {}, priority = priorityFrom(text), dueDate = parseDate(text);
-  if (priority) updates.priority = priority; if (dueDate) Object.assign(updates, { dueDate, notified: false, warned: false }); if (renameInstruction) updates.name = renameInstruction[2].trim();
+  if (priority) updates.priority = priority; if (dueDate) Object.assign(updates, { dueDate, notified: false, warned: false }); if (renameInstruction) updates.name = renameInstruction[2].trim().slice(0, 240);
   if (!Object.keys(updates).length) return say("Tell me what to change: priority, due date, or a new name.");
   updates.updatedAt = new Date().toISOString();
   await updateDoc(doc(db, "users", user.uid, "tasks", task.id), updates); state.lastTask = { ...task, ...updates }; saveState(); await refreshTaskUI(); say(`Updated ${taskLabel({ ...task, ...updates })}.`);

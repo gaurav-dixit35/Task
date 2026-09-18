@@ -1,8 +1,9 @@
-const CACHE_NAME = "karya-v6";
+const CACHE_NAME = "karya-v8";
 const urlsToCache = [
   "index.html",
   "style.css",
   "script.js",
+  "task-utils.js",
   "Karyaai/ai.js",
   "Karyaai/ai.css",
   "Karyaai/online-brain.js",
@@ -26,7 +27,7 @@ const urlsToCache = [
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(urlsToCache);
+      return cache.addAll(urlsToCache).then(() => self.skipWaiting());
     })
   );
 });
