@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -41,7 +41,9 @@
       </div>
     </header>
     <div id="aboutContainer" class="info-container" style="display: none">
-      <span class="close-btn" onclick="this.parentElement.style.display='none'"
+      <span
+        class="close-btn"
+        onclick="this.parentElement.style.display = 'none'"
         >✖</span
       >
       <h2>About Us</h2>
@@ -54,20 +56,25 @@
     </div>
 
     <div id="termsContainer" class="info-container" style="display: none">
-      <span class="close-btn" onclick="this.parentElement.style.display='none'"
+      <span
+        class="close-btn"
+        onclick="this.parentElement.style.display = 'none'"
         >✖</span
       >
       <h2>Terms & Conditions</h2>
       <p>
-        By using Karya, you agree to use the app responsibly. We do not share
-        your data. All task data is secured under your Google account. We may
+        By using Karya, you agree to use the app responsibly. Your task data is
+        stored under your Google account. Advanced AI is optional: Karya asks
+        before sending a limited task summary and chat context to Gemini. We may
         update features, so keep the app updated. Misuse may lead to restricted
         access.
       </p>
     </div>
 
     <div id="contactContainer" class="info-container" style="display: none">
-      <span class="close-btn" onclick="this.parentElement.style.display='none'"
+      <span
+        class="close-btn"
+        onclick="this.parentElement.style.display = 'none'"
         >✖</span
       >
 
@@ -104,7 +111,9 @@
       </ul>
     </div>
     <div id="installContainer" class="info-container" style="display: none">
-      <span class="close-btn" onclick="this.parentElement.style.display='none'"
+      <span
+        class="close-btn"
+        onclick="this.parentElement.style.display = 'none'"
         >✖</span
       >
       <h2>Install Karya</h2>
@@ -137,11 +146,10 @@
         <h2>Analytics Dashboard</h2>
         <p>Visual summary of your task activity sorted by date and status.</p>
         <button id="loadAnalyticsBtn">View Analytics</button>
-        <div id="analyticsOutput"></div>
-        <pre id="analyticsOutput"></pre>
+        <pre id="analyticsOutput" class="analytics-output"></pre>
         <canvas
           id="tasksChart"
-          style="max-width: 600px; margin-top: 20px"
+          style="max-width: 600px; margin-top: 16px"
         ></canvas>
       </section>
 
@@ -175,6 +183,52 @@
           <button id="previewSound">🔊 Preview</button>
         </div>
       </section>
+      <section class="setting-box">
+        <h2>Offline Task Cache</h2>
+        <p>
+          Keep your task data available on this browser while offline. Enable
+          this only on a trusted device.
+        </p>
+        <label>
+          <input type="checkbox" id="offlineCacheToggle" /> Enable offline cache
+        </label>
+      </section>
+      <section class="setting-box ai-settings" id="ai-settings">
+        <div class="setting-heading">
+          <div>
+            <p class="setting-kicker">KARYA AI</p>
+            <h2>AI Settings</h2>
+          </div>
+          <span class="setting-badge">Free-first</span>
+        </div>
+        <p>Choose how Karya AI responds on this browser. Your task commands always work without Advanced AI.</p>
+        <div class="setting-row">
+          <div>
+            <strong>Spoken responses</strong>
+            <small>Read Karya AI replies aloud when supported.</small>
+          </div>
+          <label class="switch"><input type="checkbox" id="aiSpeechToggle" /><span></span></label>
+        </div>
+        <label class="select-setting" for="aiResponseStyle">
+          <span><strong>Response style</strong><small>Used by Karya's private local planner.</small></span>
+          <select id="aiResponseStyle">
+            <option value="balanced">Balanced</option>
+            <option value="short">Short and direct</option>
+            <option value="motivational">Motivational</option>
+          </select>
+        </label>
+        <div class="setting-row">
+          <div>
+            <strong>Advanced AI context</strong>
+            <small>Allow a limited task summary and recent chat to be sent to Gemini for unusual questions.</small>
+          </div>
+          <label class="switch"><input type="checkbox" id="advancedAiToggle" /><span></span></label>
+        </div>
+        <div class="ai-usage" id="aiUsageStatus" aria-live="polite">Advanced AI usage: loading…</div>
+        <div class="setting-actions">
+          <button id="clearAiData" type="button">Clear AI data</button>
+        </div>
+      </section>
 
       <section class="setting-box danger">
         <h2>Logout</h2>
@@ -187,7 +241,10 @@
       <p>© 2025 Karya. All rights reserved. Gaurav Dixit.</p>
     </footer>
 
+    <!-- Chart.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <!-- Your settings logic -->
     <script type="module" src="set.js"></script>
   </body>
 </html>

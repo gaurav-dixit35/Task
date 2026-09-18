@@ -1,6 +1,6 @@
 {
-  "name": "Task Manager",
-  "short_name": "Tasks",
+  "name": "Karya Task Manager",
+  "short_name": "Karya",
   "start_url": "/login.html",
   "scope": "/",
   "display": "standalone",
